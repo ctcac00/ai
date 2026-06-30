@@ -1,0 +1,16 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  },
+  "alwaysThinkingEnabled": false,
+  "effortLevel": "high",
+  "tui": "fullscreen",
+  "theme": "dark-daltonized",
+  "verbose": true,
+  "skipAutoPermissionPrompt": true
+}

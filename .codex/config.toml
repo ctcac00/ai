@@ -1,0 +1,43 @@
+approvals_reviewer = "guardian_subagent"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+
+[tui]
+theme = "catppuccin-mocha"
+status_line = ["project-name", "git-branch", "pull-request-number", "branch-changes", "approval-mode", "context-window-size", "context-used", "thread-title", "model-with-reasoning"]
+status_line_use_colors = true
+
+[tui.model_availability_nux]
+"gpt-5.5" = 4
+
+[features]
+terminal_resize_reflow = true
+memories = true
+external_migration = true
+mentions_v2 = true
+plugin_hooks = true
+
+[notice.model_migrations]
+"gpt-5.2" = "gpt-5.5"
+
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+TRACE_TO_LANGFUSE = "true"
+LANGFUSE_BASE_URL = "https://cloud.langfuse.com"
+CC_LANGFUSE_DEBUG = "true"
+
+[marketplaces.cloudflare]
+source_type = "git"
+source = "https://github.com/cloudflare/skills.git"
+
+[marketplaces.expo-plugins]
+source_type = "git"
+source = "https://github.com/expo/skills.git"
+
+[plugins."expo@expo-plugins"]
+enabled = true
+
+[plugins."tracing@codex-observability-plugin"]
+enabled = true

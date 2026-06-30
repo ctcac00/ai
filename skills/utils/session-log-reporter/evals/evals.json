@@ -1,0 +1,23 @@
+{
+  "skill_name": "session-log-reporter",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "show me my skill usage report",
+      "expected_output": "A markdown report with a summary table listing all projects and their skill usage counts, followed by per-project sections for any projects where skills were used. Each section should include the skill name, usage count, and example prompts.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "what skills have I been using in plant-care?",
+      "expected_output": "A markdown report filtered to the plant-care project, showing which skills were called (commit-commands:commit and commit-commands:commit-push-pr), their counts, and example prompts that triggered them.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "give me a skill usage report for the last 7 days",
+      "expected_output": "A markdown report scoped to the past 7 days with a summary table. The 'Last 7 days' scope should be reflected in the report subtitle.",
+      "files": []
+    }
+  ]
+}

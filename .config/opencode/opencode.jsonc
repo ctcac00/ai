@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "sudo": "ask",
+      "pkill": "ask",
+      "rm -rf": "ask",
+    },
+  },
+  "autoupdate": true,
+  "experimental": {
+    "openTelemetry": true,
+  },
+  "plugin": ["@langfuse/opencode-observability-plugin@latest"],
+}

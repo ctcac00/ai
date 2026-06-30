@@ -1,0 +1,60 @@
+{
+  "lastChangelogVersion": "0.78.1",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "npm:pi-ask-user",
+    "npm:pi-mcp-adapter",
+    "git:github.com/VandeeFeng/pi-memory-md",
+    "npm:@devkade/pi-plan",
+    "npm:pi-simplify",
+    "npm:pi-add-dir",
+    "npm:pi-prompt-template-model",
+    "npm:pi-slopchop",
+    "npm:@tmustier/pi-usage-extension",
+    "npm:@tmustier/pi-raw-paste",
+    "git:github.com/tintinweb/pi-manage-todo-list",
+    "npm:pi-btw",
+    "npm:@marckrenn/pi-sub-core",
+    "npm:pi-sessions",
+    "npm:pi-notify",
+    "npm:pi-rewind",
+    "npm:@ssweens/pi-handoff",
+    "npm:pi-lens",
+    "npm:pi-image-subagent",
+    "npm:pi-web-extension",
+    "npm:pi-fast-subagent"
+  ],
+  "theme": "nightowl",
+  "subagents": {
+    "agentOverrides": {
+      "context-builder": {
+        "model": ""
+      },
+      "planner": {
+        "model": ""
+      },
+      "researcher": {
+        "model": ""
+      },
+      "reviewer": {
+        "model": ""
+      },
+      "scout": {
+        "model": ""
+      },
+      "worker": {
+        "model": ""
+      }
+    }
+  },
+  "pi-memory-md": {
+    "memoryDir": {
+      "repoUrl": "git@github.com:<your-username>/memory",
+      "localPath": "~/.pi/memory-md",
+      "globalMemory": "global"
+    }
+  }
+}
+

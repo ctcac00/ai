@@ -1,0 +1,11 @@
+.env
+.env.local
+.env.*.local
+*.bak.*
+.agent-logs/
+.agent-stack-logs/
+.agent-loop.lock
+.agent-loop.pid
+.agent-loop-stacking.lock
+.agent-loop-stacking.pid
+.claude/worktrees/

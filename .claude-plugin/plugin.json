@@ -1,0 +1,7 @@
+{
+  "name": "agentic-workflow",
+  "version": "0.1.0",
+  "description": "Carlos's custom skills for Claude Code.",
+  "author": { "name": "Carlos Castro" },
+  "skills": "./skills/"
+}

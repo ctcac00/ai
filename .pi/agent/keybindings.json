@@ -1,0 +1,5 @@
+{
+  "app.model.select": "alt+l",
+  "tui.editor.deleteToLineEnd": "alt+k",
+  "app.models.clearAll": "ctrl+shift+x"
+}

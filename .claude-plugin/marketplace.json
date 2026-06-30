@@ -1,0 +1,12 @@
+{
+  "name": "agentic-workflow",
+  "description": "Personal Claude Code skills + hooks marketplace.",
+  "owner": { "name": "Carlos Castro" },
+  "plugins": [
+    {
+      "name": "agentic-workflow",
+      "source": ".",
+      "description": "Custom skills + hooks for Claude Code."
+    }
+  ]
+}

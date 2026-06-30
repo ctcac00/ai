@@ -42,7 +42,7 @@ Installs harness binaries, copies `.claude/`, `.codex/`, `.pi/`, `.omp/`, `.conf
 ./install.sh --no-extra-skills
 ```
 
-Also installs [find-skills](https://github.com/vercel-labs/skills) and [skill-creator](https://github.com/anthropics/skills) globally for claude-code (`npx skills add ... --agent claude-code -g -y`, no prompts), and registers the `anthropics/skills` marketplace (`claude plugin marketplace add anthropics/skills`, source only — no plugin installed from it). Other harnesses pick skills up from `~/.agents/skills` by default and don't need this step.
+Also installs [find-skills](https://github.com/vercel-labs/skills) and [skill-creator](https://github.com/anthropics/skills) globally for all agents (`npx skills add ... --agent '*' -g -y`, no prompts — symlinked into `~/.agents/skills` and synced out to every harness skills.sh supports), and registers the `anthropics/skills` marketplace for claude-code (`claude plugin marketplace add anthropics/skills`, source only — no plugin installed from it).
 
 - `.pi/agent/extensions/` (custom langfuse + leader-key + sub-usage + pi-context-probe TS extensions) copied verbatim, including build artifacts.
 - Pre-flight warnings (non-fatal) for `node` and `jq`.

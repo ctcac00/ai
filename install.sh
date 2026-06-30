@@ -374,10 +374,7 @@ install_marketplace_only() {
     || warn "claude plugin marketplace add $repo returned non-zero (may already exist)"
 }
 
-# install_skillsh_skill <repo> <skill> — global single skill via skills.sh, claude code only.
-# Other harnesses pick up skills from the shared ~/.agents/skills dir by default,
-# but this installer targets claude-code explicitly since `skills add` needs an
-# --agent value and we only want it deployed for claude here.
+# install_skillsh_skill <repo> <skill> — global single skill via skills.sh, all agents.
 install_skillsh_skill() {
   local repo="$1" skill="$2"
   if ! command -v npx >/dev/null 2>&1; then
@@ -385,11 +382,11 @@ install_skillsh_skill() {
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    plan "npx skills add $repo --skill $skill --agent claude-code -g -y"
+    plan "npx skills add $repo --skill $skill --agent '*' -g -y"
     return 0
   fi
-  npx --yes skills add "$repo" --skill "$skill" --agent claude-code -g -y >/dev/null 2>&1 \
-    && ok "$skill installed (claude-code)" \
+  npx --yes skills add "$repo" --skill "$skill" --agent '*' -g -y >/dev/null 2>&1 \
+    && ok "$skill installed (all agents)" \
     || warn "npx skills add $skill returned non-zero"
 }
 

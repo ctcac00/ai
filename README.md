@@ -2,6 +2,8 @@
 
 This repo holds my custom Claude Code skills + hooks (installable as a plugin) and per-harness settings files (deployed via `install.sh`).
 
+Harnesses I use: claude-code, codex, opencode, pi, oh-my-pi.
+
 ## 1. Claude Code plugin (skills + hooks)
 
 `install.sh` handles this automatically. To install manually:
@@ -46,7 +48,14 @@ Also installs [find-skills](https://github.com/vercel-labs/skills) and [skill-cr
 - Pre-flight warnings (non-fatal) for `node` and `jq`.
 - `.pi/agent/settings.json` has a `pi-memory-md.memoryDir.repoUrl` placeholder (`<your-username>/memory`) — point it at your own memory repo before use.
 
-## External dependencies
+### Skills I use (global)
+
+- find-skills - skill.sh skills finder
+- skill-creator - to create new skills
+- mattpocock/skills - a collection of agentic workflow skills
+- caveman - for terse communication with LLMs
+
+## 3. External dependencies
 
 Not vendored — assumed present:
 
@@ -67,33 +76,14 @@ export LANGFUSE_BASE_URL="https://cloud.langfuse.com" # EU; us./jp./hipaa. for o
 export TRACE_TO_LANGFUSE="true"   # codex opt-in
 ```
 
-Harnesses I use: claude-code, codex, opencode, pi, oh-my-pi.
+## 4. Project-level config
 
-Skills I use:
+At a project level I use a variety of additional plugins, skills, and MCP servers, configured per-repo rather than globally. Example below is from a React Native mobile app.
 
-- find-skills - skill.sh skills finder
-- skill-creator - to create new skills
-- mattpocock/skills - a collection of agentic workflow skills
-- caveman - for terse communication with LLMs
-
-Harnesses I use:
-
-- claude-code
-- opencode
-- codex
-- pi
-- oh-my-pi
-
-## Project level
-
-At a project level I will use a variety of plugins and skills
-
-For example, for a React Native mobile app:
-
-Skills:
+### Skills
 
 | Skill                            | Path                                              | Agents                                       |
-| -------------------------------- | ------------------------------------------------- | -------------------------------------------- |
+| --------------------------------- | ------------------------------------------------- | --------------------------------------------- |
 | codebase-design                  | `.agents/skills/codebase-design`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | diagnosing-bugs                  | `.agents/skills/diagnosing-bugs`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | domain-modeling                  | `.agents/skills/domain-modeling`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
@@ -133,7 +123,7 @@ npx skills add vercel-labs/agent-skills
 npx skills add supabase/agent-skills
 ```
 
-Claude Code plugins:
+### Claude Code plugins
 
 ```json
 {
@@ -169,7 +159,7 @@ Claude Code plugins:
 }
 ```
 
-MCP servers:
+### MCP servers
 
 ```json
 {

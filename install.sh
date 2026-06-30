@@ -374,7 +374,7 @@ install_marketplace_only() {
     || warn "claude plugin marketplace add $repo returned non-zero (may already exist)"
 }
 
-# install_skillsh_skill <repo> <skill> — global single skill via skills.sh, all agents.
+# install_skillsh_skill <repo> <skill> — global single skill via skills.sh.
 install_skillsh_skill() {
   local repo="$1" skill="$2"
   if ! command -v npx >/dev/null 2>&1; then
@@ -382,11 +382,11 @@ install_skillsh_skill() {
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    plan "npx skills add $repo --skill $skill --agent '*' -g -y"
+    plan "npx skills add $repo --skill $skill -g -y"
     return 0
   fi
-  npx --yes skills add "$repo" --skill "$skill" --agent '*' -g -y >/dev/null 2>&1 \
-    && ok "$skill installed (all agents)" \
+  npx --yes skills add "$repo" --skill "$skill" -g -y >/dev/null 2>&1 \
+    && ok "$skill installed" \
     || warn "npx skills add $skill returned non-zero"
 }
 

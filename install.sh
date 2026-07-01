@@ -261,7 +261,15 @@ ensure_bin() {
 }
 
 _install_claude()   { npm install -g @anthropic-ai/claude-code; }
-_install_pi()       { curl -fsSL https://pi.dev/install.sh | sh; }
+_install_pi() {
+  # pi's installer prompts via /dev/tty regardless of stdin; setsid detaches
+  # the controlling tty so it falls back to its non-interactive default.
+  if [ "$ASSUME_YES" -eq 1 ] && command -v setsid >/dev/null 2>&1; then
+    curl -fsSL https://pi.dev/install.sh | setsid sh
+  else
+    curl -fsSL https://pi.dev/install.sh | sh
+  fi
+}
 _install_omp()      { curl -fsSL https://omp.sh/install | sh; }
 _install_opencode() { curl -fsSL https://opencode.ai/install | bash; }
 _install_codex()    { curl -fsSL https://chatgpt.com/codex/install.sh | sh; }

@@ -1,9 +1,9 @@
 ---
-name: session-insights
+name: pi-session-insights
 description: Analyze pi session history to find errors, corrections, and patterns. Produces a markdown report with actionable suggestions to improve model accuracy via AGENTS.md or memory entries.
 ---
 
-# Session Insights
+# Pi Session Insights
 
 Analyze your pi session history and produce a markdown report with actionable insights.
 
@@ -28,7 +28,7 @@ npx tsx <skill-dir>/scripts/analyze.ts --days 7
 ### Options
 
 | Flag | Description | Default |
-|---|---|---|
+| --- | --- | --- |
 | `--days N` | Analyze last N days | 7 |
 | `--from YYYY-MM-DD` | Start date | 7 days ago |
 | `--to YYYY-MM-DD` | End date | today |

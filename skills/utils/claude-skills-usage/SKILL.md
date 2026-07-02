@@ -1,9 +1,9 @@
 ---
-name: session-log-reporter
+name: claude-skills-usage
 description: "Generates a markdown report of Claude Code skill usage across all projects by parsing session logs in ~/.claude/projects. Use this skill whenever the user asks about skill usage stats, which skills they've used, how often a skill was invoked, skill usage by project, or wants a session report or activity summary. Also trigger it when the user asks things like \"what skills have I been using?\", \"show me my skill usage\", \"skill report for my-project\", or \"how many times did I use commit-commands\"."
 ---
 
-# Session Log Reporter
+# Claude Skills Usage
 
 This skill parses Claude Code session logs and produces a nicely formatted markdown
 report showing which skills were used, how often, and in what context — broken down
@@ -12,6 +12,7 @@ by project.
 ## When invoked
 
 The user will say something like:
+
 - "show me my skill usage report"
 - "what skills have I been using in plant-care?"
 - "skill usage for the last 30 days"
@@ -28,6 +29,7 @@ python <skill_dir>/scripts/analyze_skill_usage.py [OPTIONS]
 ```
 
 Available options:
+
 - `--project <name>` — filter to a single project (partial match, case-insensitive). Use this when the user mentions a specific project.
 - `--days <N>` — only include sessions from the last N days
 - `--projects-dir <path>` — override the default `~/.claude/projects` location
@@ -37,7 +39,7 @@ skill invocation context as "Base directory for this skill: `<path>`". Use that 
 to locate the script, e.g.:
 
 ```bash
-python /home/user/.claude/skills/session-log-reporter/scripts/analyze_skill_usage.py
+python /home/user/.claude/skills/claude-skills-usage/scripts/analyze_skill_usage.py
 ```
 
 ## What to do with the output

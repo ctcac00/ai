@@ -13,28 +13,65 @@ import os
 import re
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from collections.abc import Iterator
+from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, TypedDict
 
 
-def parse_args():
+class SkillStats(TypedDict):
+    count: int
+    user_invoked: int
+    claude_activated: int
+    examples: list[str]
+
+
+class ProjectStats(TypedDict):
+    sessions: int
+    skill_sessions: int
+    skills: dict[str, SkillStats]
+
+
+def make_skill_stats() -> SkillStats:
+    return {"count": 0, "user_invoked": 0, "claude_activated": 0, "examples": []}
+
+
+def make_project_stats() -> ProjectStats:
+    return {
+        "sessions": 0,
+        "skill_sessions": 0,
+        "skills": defaultdict(make_skill_stats),
+    }
+
+
+def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--project", help="Filter to a single project name (partial match, case-insensitive)")
-    p.add_argument("--days", type=int, help="Only include sessions from the last N days")
-    p.add_argument("--projects-dir", default=os.path.expanduser("~/.claude/projects"),
-                   help="Path to Claude projects directory")
+    p.add_argument(
+        "--project",
+        help="Filter to a single project name (partial match, case-insensitive)",
+    )
+    p.add_argument(
+        "--days", type=int, help="Only include sessions from the last N days"
+    )
+    p.add_argument(
+        "--projects-dir",
+        default=os.path.expanduser("~/.claude/projects"),
+        help="Path to Claude projects directory",
+    )
     return p.parse_args()
 
 
-def iter_jsonl(path):
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
+    try:
+        with path.open(encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    with suppress(json.JSONDecodeError):
+                        yield json.loads(line)
+    except OSError as exc:
+        print(f"WARNING: Could not read {path}: {exc}", file=sys.stderr)
 
 
 def project_name_from_cwd(cwd):
@@ -93,7 +130,9 @@ def find_direct_skill_invocations(entries):
             nxt = entries[j]
             if nxt.get("type") != "user":
                 continue
-            nxt_text = extract_text_from_content(nxt.get("message", {}).get("content", ""))
+            nxt_text = extract_text_from_content(
+                nxt.get("message", {}).get("content", "")
+            )
             if "Base directory for this skill:" in nxt_text:
                 is_skill = True
             break
@@ -108,7 +147,9 @@ def find_direct_skill_invocations(entries):
         yield skill_name, example
 
 
-def analyze(projects_dir, project_filter=None, days=None):
+def analyze(
+    projects_dir: str, project_filter: str | None = None, days: int | None = None
+) -> dict[str, ProjectStats]:
     """
     Returns a dict keyed by project name:
       {
@@ -127,11 +168,7 @@ def analyze(projects_dir, project_filter=None, days=None):
       }
     """
     cutoff = cutoff_dt(days)
-    results = defaultdict(lambda: {
-        "sessions": 0,
-        "skill_sessions": 0,
-        "skills": defaultdict(lambda: {"count": 0, "user_invoked": 0, "claude_activated": 0, "examples": []})
-    })
+    results: defaultdict[str, ProjectStats] = defaultdict(make_project_stats)
 
     projects_path = Path(projects_dir)
     if not projects_path.exists():
@@ -193,10 +230,14 @@ def analyze(projects_dir, project_filter=None, days=None):
                                 user_prompt = c.strip()
                             elif isinstance(c, list):
                                 for part in c:
-                                    if isinstance(part, dict) and part.get("type") == "text":
+                                    if (
+                                        isinstance(part, dict)
+                                        and part.get("type") == "text"
+                                    ):
                                         txt = part["text"].strip()
-                                        if not txt.startswith("Base directory for this skill:") and \
-                                           not txt.startswith("## Context"):
+                                        if not txt.startswith(
+                                            "Base directory for this skill:"
+                                        ) and not txt.startswith("## Context"):
                                             user_prompt = txt
                                             break
                             if user_prompt:
@@ -205,9 +246,12 @@ def analyze(projects_dir, project_filter=None, days=None):
                     skill_data = results[proj]["skills"][skill_name]
                     skill_data["count"] += 1
                     skill_data["claude_activated"] += 1
-                    if user_prompt and user_prompt not in skill_data["examples"]:
-                        if len(skill_data["examples"]) < 3:
-                            skill_data["examples"].append(user_prompt[:120])
+                    if (
+                        user_prompt
+                        and user_prompt not in skill_data["examples"]
+                        and len(skill_data["examples"]) < 3
+                    ):
+                        skill_data["examples"].append(user_prompt[:120])
 
         # Direct slash-command skill invocations (user typed /skill-name)
         for skill_name, example in find_direct_skill_invocations(entries):
@@ -215,9 +259,12 @@ def analyze(projects_dir, project_filter=None, days=None):
             skill_data = results[proj]["skills"][skill_name]
             skill_data["count"] += 1
             skill_data["user_invoked"] += 1
-            if example and example not in skill_data["examples"]:
-                if len(skill_data["examples"]) < 3:
-                    skill_data["examples"].append(example)
+            if (
+                example
+                and example not in skill_data["examples"]
+                and len(skill_data["examples"]) < 3
+            ):
+                skill_data["examples"].append(example)
 
         if skill_calls_found:
             results[proj]["skill_sessions"] += 1
@@ -225,7 +272,11 @@ def analyze(projects_dir, project_filter=None, days=None):
     return results
 
 
-def render_markdown(results, project_filter=None, days=None):
+def render_markdown(
+    results: dict[str, ProjectStats],
+    project_filter: str | None = None,
+    days: int | None = None,
+) -> str:
     lines = []
     title = "# Skill Usage Report"
     if project_filter:
@@ -248,20 +299,25 @@ def render_markdown(results, project_filter=None, days=None):
 
     # Sort projects: those with skill usage first, then by name
     sorted_projects = sorted(
-        results.items(),
-        key=lambda kv: (-kv[1]["skill_sessions"], kv[0])
+        results.items(), key=lambda kv: (-kv[1]["skill_sessions"], kv[0])
     )
 
     # Summary table
     lines.append("## Summary")
     lines.append("")
-    lines.append("| Project | Sessions | Sessions with Skills | Total | User-invoked | Claude-activated |")
-    lines.append("|---------|----------|---------------------|-------|--------------|-----------------|")
+    lines.append(
+        "| Project | Sessions | Sessions with Skills | Total | User-invoked | Claude-activated |"
+    )
+    lines.append(
+        "|---------|----------|---------------------|-------|--------------|-----------------|"
+    )
     for proj, data in sorted_projects:
         total_calls = sum(s["count"] for s in data["skills"].values())
         user_total = sum(s["user_invoked"] for s in data["skills"].values())
         claude_total = sum(s["claude_activated"] for s in data["skills"].values())
-        lines.append(f"| {proj} | {data['sessions']} | {data['skill_sessions']} | {total_calls} | {user_total} | {claude_total} |")
+        lines.append(
+            f"| {proj} | {data['sessions']} | {data['skill_sessions']} | {total_calls} | {user_total} | {claude_total} |"
+        )
     lines.append("")
 
     # Per-project detail sections
@@ -273,8 +329,10 @@ def render_markdown(results, project_filter=None, days=None):
         lines.append("")
 
         total_calls = sum(s["count"] for s in data["skills"].values())
-        lines.append(f"**{total_calls} skill call{'s' if total_calls != 1 else ''}** across "
-                     f"**{data['skill_sessions']} session{'s' if data['skill_sessions'] != 1 else ''}**")
+        lines.append(
+            f"**{total_calls} skill call{'s' if total_calls != 1 else ''}** across "
+            f"**{data['skill_sessions']} session{'s' if data['skill_sessions'] != 1 else ''}**"
+        )
         lines.append("")
 
         # Sort skills by usage count descending
@@ -304,7 +362,7 @@ def render_markdown(results, project_filter=None, days=None):
     return "\n".join(lines)
 
 
-def main():
+def main() -> None:
     args = parse_args()
     results = analyze(args.projects_dir, project_filter=args.project, days=args.days)
     report = render_markdown(results, project_filter=args.project, days=args.days)

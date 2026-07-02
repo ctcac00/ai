@@ -1,5 +1,7 @@
+/// <reference path="./node-shims.d.ts" />
+
 /**
- * Session Insights Analyzer
+ * Pi Session Insights Analyzer
  *
  * Scans pi session files, extracts errors/corrections/patterns,
  * and outputs a markdown report with actionable suggestions.
@@ -101,11 +103,16 @@ function parseCliArgs(): { from: Date; to: Date; sessionsDir: string } {
 	const now = new Date();
 	let from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // default: 7 days
 	let to = now;
-	let sessionsDir = path.join(process.env.HOME || "/root", ".pi/agent/sessions");
+	let sessionsDir = path.join(
+		process.env.HOME || "/root",
+		".pi/agent/sessions",
+	);
 
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === "--days" && args[i + 1]) {
-			from = new Date(now.getTime() - parseInt(args[i + 1]) * 24 * 60 * 60 * 1000);
+			from = new Date(
+				now.getTime() - parseInt(args[i + 1]) * 24 * 60 * 60 * 1000,
+			);
 			i++;
 		} else if (args[i] === "--from" && args[i + 1]) {
 			from = parseDate(args[i + 1]);
@@ -145,17 +152,29 @@ function getTextFromContent(content: unknown): string {
 	return content
 		.filter(
 			(b): b is { type: "text"; text: string } =>
-				typeof b === "object" && b !== null && (b as any).type === "text" && typeof (b as any).text === "string",
+				typeof b === "object" &&
+				b !== null &&
+				(b as any).type === "text" &&
+				typeof (b as any).text === "string",
 		)
 		.map((b) => b.text)
 		.join("\n");
 }
 
-function getToolCalls(content: unknown): Array<{ id: string; name: string; arguments: Record<string, unknown> }> {
+function getToolCalls(
+	content: unknown,
+): Array<{ id: string; name: string; arguments: Record<string, unknown> }> {
 	if (!Array.isArray(content)) return [];
 	return content
 		.filter(
-			(b): b is { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> } =>
+			(
+				b,
+			): b is {
+				type: "toolCall";
+				id: string;
+				name: string;
+				arguments: Record<string, unknown>;
+			} =>
 				typeof b === "object" && b !== null && (b as any).type === "toolCall",
 		)
 		.map((b) => ({ id: b.id, name: b.name, arguments: b.arguments }));
@@ -180,17 +199,46 @@ function extractBashErrorSummary(text: string): string {
 }
 
 const CORRECTION_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-	{ pattern: /\b(no|nope|wrong|incorrect|that('?s| is) (not|wrong)|that doesn'?t work)\b/i, label: "correction" },
-	{ pattern: /\b(revert|undo|roll back|go back|don'?t do that|stop)\b/i, label: "revert" },
-	{ pattern: /\b(try (a different|another|using)|instead of that|use .* instead)\b/i, label: "redirect" },
-	{ pattern: /\b(I meant|what I (actually )?want|let me clarify|to be clear)\b/i, label: "clarification" },
-	{ pattern: /\b(that'?s? (not|isn'?t) (right|correct|what I|needed)|not quite|close but)\b/i, label: "correction" },
-	{ pattern: /\b(don'?t (do|use|write|create|remove|delete)|never (do|use|write))\b/i, label: "constraint" },
-	{ pattern: /\b(fix (the|that|it)|fixing|broken|doesn'?t (work|compile|run))\b/i, label: "error_report" },
+	{
+		pattern:
+			/\b(no|nope|wrong|incorrect|that('?s| is) (not|wrong)|that doesn'?t work)\b/i,
+		label: "correction",
+	},
+	{
+		pattern: /\b(revert|undo|roll back|go back|don'?t do that|stop)\b/i,
+		label: "revert",
+	},
+	{
+		pattern:
+			/\b(try (a different|another|using)|instead of that|use .* instead)\b/i,
+		label: "redirect",
+	},
+	{
+		pattern:
+			/\b(I meant|what I (actually )?want|let me clarify|to be clear)\b/i,
+		label: "clarification",
+	},
+	{
+		pattern:
+			/\b(that'?s? (not|isn'?t) (right|correct|what I|needed)|not quite|close but)\b/i,
+		label: "correction",
+	},
+	{
+		pattern:
+			/\b(don'?t (do|use|write|create|remove|delete)|never (do|use|write))\b/i,
+		label: "constraint",
+	},
+	{
+		pattern:
+			/\b(fix (the|that|it)|fixing|broken|doesn'?t (work|compile|run))\b/i,
+		label: "error_report",
+	},
 	{ pattern: /\b(wait|hold on|actually,?\s)/i, label: "interrupt" },
 ];
 
-function detectCorrections(text: string): Array<{ label: string; match: string }> {
+function detectCorrections(
+	text: string,
+): Array<{ label: string; match: string }> {
 	const results: Array<{ label: string; match: string }> = [];
 	for (const { pattern, label } of CORRECTION_PATTERNS) {
 		const m = text.match(pattern);
@@ -201,7 +249,11 @@ function detectCorrections(text: string): Array<{ label: string; match: string }
 
 // ── Session scanning ────────────────────────────────────────────────────────
 
-async function* findSessionFiles(dir: string, from: Date, to: Date): AsyncGenerator<string> {
+async function* findSessionFiles(
+	dir: string,
+	from: Date,
+	to: Date,
+): AsyncGenerator<string> {
 	if (!fs.existsSync(dir)) return;
 
 	const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -223,7 +275,11 @@ async function* findSessionFiles(dir: string, from: Date, to: Date): AsyncGenera
 	}
 }
 
-async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{ meta: SessionMeta; findings: Finding[] } | null> {
+async function analyzeSession(
+	filePath: string,
+	from: Date,
+	to: Date,
+): Promise<{ meta: SessionMeta; findings: Finding[] } | null> {
 	const entries: SessionEntry[] = [];
 
 	const stream = fs.createReadStream(filePath, "utf-8");
@@ -281,10 +337,17 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 	const sessionId = path.basename(filePath, ".jsonl");
 
 	// Track tool calls for repetition detection
-	const toolCallHistory: Array<{ name: string; args: Record<string, unknown>; timestamp: string }> = [];
+	const toolCallHistory: Array<{
+		name: string;
+		args: Record<string, unknown>;
+		timestamp: string;
+	}> = [];
 
 	// Track files written for revert detection
-	const fileEdits: Map<string, Array<{ timestamp: string; tool: string }>> = new Map();
+	const fileEdits: Map<
+		string,
+		Array<{ timestamp: string; tool: string }>
+	> = new Map();
 
 	for (const entry of entries) {
 		if (entry.type !== "message" || !entry.message) continue;
@@ -308,9 +371,10 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 					timestamp: ts,
 					description: `User ${correction.label}: "${correction.match}"`,
 					excerpt: truncate(text, 200),
-					suggestion: correction.label === "constraint"
-						? "Consider adding this constraint to AGENTS.md so the model remembers it."
-						: "Review if this correction reveals a recurring misunderstanding the model has.",
+					suggestion:
+						correction.label === "constraint"
+							? "Consider adding this constraint to AGENTS.md so the model remembers it."
+							: "Review if this correction reveals a recurring misunderstanding the model has.",
 				});
 			}
 		} else if (msg.role === "assistant") {
@@ -321,7 +385,11 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 			const toolCalls = getToolCalls(msg.content);
 			for (const tc of toolCalls) {
 				meta.toolCallCount++;
-				toolCallHistory.push({ name: tc.name, args: tc.arguments, timestamp: ts });
+				toolCallHistory.push({
+					name: tc.name,
+					args: tc.arguments,
+					timestamp: ts,
+				});
 
 				// Track edits/writes
 				if (tc.name === "edit" || tc.name === "write") {
@@ -351,7 +419,8 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 						description: `Model called ${tc.name} on ${String(tc.arguments.path || "?")} ${recentCalls.length} times within 60s`,
 						excerpt: truncate(JSON.stringify(tc.arguments), 150),
 						toolName: tc.name,
-						suggestion: "Model may be struggling with this file/task. Consider providing clearer instructions or splitting the task.",
+						suggestion:
+							"Model may be struggling with this file/task. Consider providing clearer instructions or splitting the task.",
 					});
 				}
 			}
@@ -369,13 +438,26 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 			// Detect bash errors
 			if (toolName === "bash" && text) {
 				// Skip if it looks like output from reading a file (documentation, source code)
-				const isFileContent = text.includes("pi can create") || text.includes("import type") || text.startsWith("> ");
-				const hasError = text.includes("exited with code") && !text.includes("exited with code 0");
+				const isFileContent =
+					text.includes("pi can create") ||
+					text.includes("import type") ||
+					text.startsWith("> ");
+				const hasError =
+					text.includes("exited with code") &&
+					!text.includes("exited with code 0");
 				const hasDenied = text.includes("Permission denied");
-				const hasNotFound = text.includes("command not found") || text.includes(": not found");
-				const hasFailed = !hasError && (text.includes("\nError:") || text.includes("\nFAILED") || text.includes("Job for ") && text.includes("failed"));
+				const hasNotFound =
+					text.includes("command not found") || text.includes(": not found");
+				const hasFailed =
+					!hasError &&
+					(text.includes("\nError:") ||
+						text.includes("\nFAILED") ||
+						(text.includes("Job for ") && text.includes("failed")));
 
-				if (!isFileContent && (hasError || hasDenied || hasNotFound || hasFailed)) {
+				if (
+					!isFileContent &&
+					(hasError || hasDenied || hasNotFound || hasFailed)
+				) {
 					meta.bashErrorCount++;
 					const errorSummary = extractBashErrorSummary(text);
 					findings.push({
@@ -399,7 +481,10 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 			// Detect fetch/read errors
 			if (toolName === "fetch_content" && text) {
 				// Only flag actual HTTP errors, not search result summaries
-				if (text.startsWith("Error: HTTP") || (text.includes("404") && text.length < 200)) {
+				if (
+					text.startsWith("Error: HTTP") ||
+					(text.includes("404") && text.length < 200)
+				) {
 					findings.push({
 						category: "fetch_error",
 						severity: "low",
@@ -409,7 +494,8 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 						description: `${toolName} returned an error`,
 						excerpt: truncate(text, 200),
 						toolName,
-						suggestion: "Network/fetch error — may indicate outdated URLs or API issues.",
+						suggestion:
+							"Network/fetch error — may indicate outdated URLs or API issues.",
 					});
 				}
 			}
@@ -418,7 +504,9 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 
 	// Detect compaction events
 	const compactionEntries = entries.filter(
-		(e) => e.type === "custom" && (e.customType === "compaction" || e.customType === "compact"),
+		(e) =>
+			e.type === "custom" &&
+			(e.customType === "compaction" || e.customType === "compact"),
 	);
 	meta.compactionCount = compactionEntries.length;
 
@@ -440,7 +528,8 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 	for (const [filePath, edits] of fileEdits) {
 		if (edits.length >= 3) {
 			const timeSpan =
-				new Date(edits[edits.length - 1].timestamp).getTime() - new Date(edits[0].timestamp).getTime();
+				new Date(edits[edits.length - 1].timestamp).getTime() -
+				new Date(edits[0].timestamp).getTime();
 			if (timeSpan < 5 * 60 * 1000) {
 				// Within 5 minutes
 				findings.push({
@@ -474,7 +563,10 @@ async function analyzeSession(filePath: string, from: Date, to: Date): Promise<{
 	}
 
 	// Flag sessions with high error ratio
-	if (meta.bashErrorCount > 3 && meta.bashErrorCount / Math.max(meta.toolCallCount, 1) > 0.2) {
+	if (
+		meta.bashErrorCount > 3 &&
+		meta.bashErrorCount / Math.max(meta.toolCallCount, 1) > 0.2
+	) {
 		findings.push({
 			category: "high_error_rate",
 			severity: "high",
@@ -500,7 +592,7 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 	const fromStr = from.toISOString().slice(0, 10);
 	const toStr = to.toISOString().slice(0, 10);
 
-	lines.push(`# Session Insights Report`);
+	lines.push(`# Pi Session Insights Report`);
 	lines.push(``);
 	lines.push(`**Period:** ${fromStr} → ${toStr}`);
 	lines.push(`**Sessions analyzed:** ${stats.totalSessions}`);
@@ -519,21 +611,57 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 	lines.push(`| Compactions | ${stats.totalCompactions} |`);
 	lines.push(`| Total cost | ${formatCost(stats.totalCost)} |`);
 	lines.push(`| Total tokens | ${formatTokens(stats.totalTokens)} |`);
-	lines.push(`| Avg messages/session | ${stats.avgMessagesPerSession.toFixed(1)} |`);
+	lines.push(
+		`| Avg messages/session | ${stats.avgMessagesPerSession.toFixed(1)} |`,
+	);
 	lines.push(`| Bash error rate | ${(stats.errorRate * 100).toFixed(1)}% |`);
-	lines.push(`| Compaction rate | ${(stats.compactionRate * 100).toFixed(1)}% of sessions |`);
+	lines.push(
+		`| Compaction rate | ${(stats.compactionRate * 100).toFixed(1)}% of sessions |`,
+	);
 	lines.push(``);
 
 	// ── Findings by category ──
 	const categories = [
-		{ key: "user_correction", title: "🔄 User Corrections", desc: "Times you corrected, redirected, or clarified the model's output" },
-		{ key: "bash_error", title: "❌ Bash Errors", desc: "Failed shell commands" },
-		{ key: "fetch_error", title: "🌐 Fetch/Search Errors", desc: "Failed web requests" },
-		{ key: "repeated_tool_call", title: "🔁 Repeated Tool Calls", desc: "Model called the same tool multiple times rapidly" },
-		{ key: "file_churn", title: "📝 File Churn", desc: "Files edited many times in quick succession" },
-		{ key: "compaction", title: "🗜️ Context Compactions", desc: "Sessions that hit context limits" },
-		{ key: "high_error_rate", title: "⚠️ High Error Rate Sessions", desc: "Sessions with unusually high failure rates" },
-		{ key: "long_session", title: "📏 Long Sessions", desc: "Sessions with many messages" },
+		{
+			key: "user_correction",
+			title: "🔄 User Corrections",
+			desc: "Times you corrected, redirected, or clarified the model's output",
+		},
+		{
+			key: "bash_error",
+			title: "❌ Bash Errors",
+			desc: "Failed shell commands",
+		},
+		{
+			key: "fetch_error",
+			title: "🌐 Fetch/Search Errors",
+			desc: "Failed web requests",
+		},
+		{
+			key: "repeated_tool_call",
+			title: "🔁 Repeated Tool Calls",
+			desc: "Model called the same tool multiple times rapidly",
+		},
+		{
+			key: "file_churn",
+			title: "📝 File Churn",
+			desc: "Files edited many times in quick succession",
+		},
+		{
+			key: "compaction",
+			title: "🗜️ Context Compactions",
+			desc: "Sessions that hit context limits",
+		},
+		{
+			key: "high_error_rate",
+			title: "⚠️ High Error Rate Sessions",
+			desc: "Sessions with unusually high failure rates",
+		},
+		{
+			key: "long_session",
+			title: "📏 Long Sessions",
+			desc: "Sessions with many messages",
+		},
 	];
 
 	for (const cat of categories) {
@@ -542,7 +670,9 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 
 		lines.push(`## ${cat.title}`);
 		lines.push(``);
-		lines.push(`*${cat.desc}* — **${catFindings.length} finding${catFindings.length > 1 ? "s" : ""}**`);
+		lines.push(
+			`*${cat.desc}* — **${catFindings.length} finding${catFindings.length > 1 ? "s" : ""}**`,
+		);
 		lines.push(``);
 
 		// Group by unique descriptions for cleaner output
@@ -569,9 +699,13 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 			}
 
 			// Sessions where this happened
-			const sessionList = [...new Set(group.map((f) => f.session.slice(0, 8)))].slice(0, 5);
+			const sessionList = [
+				...new Set(group.map((f) => f.session.slice(0, 8))),
+			].slice(0, 5);
 			if (sessionList.length > 0) {
-				lines.push(`- **Sessions:** ${sessionList.join(", ")}${group.length > 5 ? ` (+${group.length - 5} more)` : ""}`);
+				lines.push(
+					`- **Sessions:** ${sessionList.join(", ")}${group.length > 5 ? ` (+${group.length - 5} more)` : ""}`,
+				);
 			}
 
 			if (group[0].suggestion) {
@@ -586,12 +720,19 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 	lines.push(``);
 
 	// Collect unique suggestions from high/medium findings
-	const suggestions = new Map<string, { count: number; severity: string; categories: Set<string> }>();
+	const suggestions = new Map<
+		string,
+		{ count: number; severity: string; categories: Set<string> }
+	>();
 	for (const f of findings) {
 		if (!f.suggestion || f.severity === "low") continue;
 		const key = f.suggestion;
 		if (!suggestions.has(key)) {
-			suggestions.set(key, { count: 0, severity: f.severity, categories: new Set() });
+			suggestions.set(key, {
+				count: 0,
+				severity: f.severity,
+				categories: new Set(),
+			});
 		}
 		const s = suggestions.get(key)!;
 		s.count++;
@@ -599,23 +740,32 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 	}
 
 	if (suggestions.size === 0) {
-		lines.push(`No high-priority suggestions found. Your sessions look clean! 🎉`);
+		lines.push(
+			`No high-priority suggestions found. Your sessions look clean! 🎉`,
+		);
 	} else {
-		const sorted = [...suggestions.entries()].sort((a, b) => b[1].count - a[1].count);
+		const sorted = [...suggestions.entries()].sort(
+			(a, b) => b[1].count - a[1].count,
+		);
 		for (const [suggestion, data] of sorted) {
-			lines.push(`1. **[${data.severity.toUpperCase()}]** (×${data.count}) ${suggestion}`);
+			lines.push(
+				`1. **[${data.severity.toUpperCase()}]** (×${data.count}) ${suggestion}`,
+			);
 		}
 	}
 	lines.push(``);
 
 	// ── Constraint extraction ──
 	const constraintFindings = findings.filter(
-		(f) => f.category === "user_correction" && f.description.includes("constraint"),
+		(f) =>
+			f.category === "user_correction" && f.description.includes("constraint"),
 	);
 	if (constraintFindings.length > 0) {
 		lines.push(`## 📋 Detected Constraints`);
 		lines.push(``);
-		lines.push(`These are rules you've explicitly told the model. Consider adding them to AGENTS.md:`);
+		lines.push(
+			`These are rules you've explicitly told the model. Consider adding them to AGENTS.md:`,
+		);
 		lines.push(``);
 		for (const f of constraintFindings) {
 			lines.push(`- ${f.excerpt}`);
@@ -631,7 +781,9 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 	for (const s of sessions.slice(0, 30)) {
 		const shortId = s.id.slice(0, 8);
 		const project = path.basename(s.cwd);
-		lines.push(`| ${shortId} | ${project} | ${s.messageCount} | ${s.toolCallCount} | ${s.bashErrorCount} | ${formatCost(s.totalCost)} |`);
+		lines.push(
+			`| ${shortId} | ${project} | ${s.messageCount} | ${s.toolCallCount} | ${s.bashErrorCount} | ${formatCost(s.totalCost)} |`,
+		);
 	}
 	if (sessions.length > 30) {
 		lines.push(`| *...${sessions.length - 30} more sessions* | | | | | |`);
@@ -646,7 +798,9 @@ function generateReport(result: AnalysisResult, from: Date, to: Date): string {
 async function main() {
 	const { from, to, sessionsDir } = parseCliArgs();
 
-	console.error(`Scanning sessions from ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}...`);
+	console.error(
+		`Scanning sessions from ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}...`,
+	);
 	console.error(`Directory: ${sessionsDir}`);
 
 	const allMeta: SessionMeta[] = [];
@@ -667,10 +821,12 @@ async function main() {
 		}
 	}
 
-	console.error(`Analyzed ${sessionCount} sessions, found ${allFindings.length} findings.`);
+	console.error(
+		`Analyzed ${sessionCount} sessions, found ${allFindings.length} findings.`,
+	);
 
 	if (sessionCount === 0) {
-		console.log("# Session Insights Report\n");
+		console.log("# Pi Session Insights Report\n");
 		console.log("No sessions found in the specified time range.");
 		return;
 	}
@@ -680,7 +836,11 @@ async function main() {
 
 	// Sort findings by severity then timestamp
 	const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-	allFindings.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || a.timestamp.localeCompare(b.timestamp));
+	allFindings.sort(
+		(a, b) =>
+			severityOrder[a.severity] - severityOrder[b.severity] ||
+			a.timestamp.localeCompare(b.timestamp),
+	);
 
 	const totalMessages = allMeta.reduce((s, m) => s + m.messageCount, 0);
 	const totalToolCalls = allMeta.reduce((s, m) => s + m.toolCallCount, 0);
@@ -700,7 +860,8 @@ async function main() {
 			totalCompactions,
 			totalCost,
 			totalTokens,
-			avgMessagesPerSession: sessionCount > 0 ? totalMessages / sessionCount : 0,
+			avgMessagesPerSession:
+				sessionCount > 0 ? totalMessages / sessionCount : 0,
 			errorRate: totalToolCalls > 0 ? totalBashErrors / totalToolCalls : 0,
 			compactionRate: sessionCount > 0 ? totalCompactions / sessionCount : 0,
 		},

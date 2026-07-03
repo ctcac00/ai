@@ -107,8 +107,10 @@ Pick the **lowest-numbered eligible issue**. Then scan its title, body, and comm
 
 ```bash
 gh issue view N --json number,state,url
-gh pr list --state open --search "#N" --json number,headRefName,statusCheckRollup,url --limit 20
+gh pr list --state open --search "#N" --json number,title,headRefName,statusCheckRollup,url --limit 20
 ```
+
+`--search "#N"` matches substrings (`#4` also hits `#42`). As in Step 1C, confirm each returned PR references the blocker as a whole token before trusting its CI status; discard false matches.
 
 - Blocker **closed** → satisfied.
 - Blocker open with an **open PR whose CI is all green** → satisfied. Record that PR's `headRefName` as the base for Step 3 — stack directly on the blocker's own branch, which may not be the current topmost stack branch.

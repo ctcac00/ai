@@ -17,7 +17,7 @@ Dev/test without installing:
 
 ```bash
 claude --plugin-dir /path/to/agentic-workflow
-# then /reload-plugins, invoke e.g. agentic-workflow:agent-loop
+# then /reload-plugins, invoke e.g. agentic-workflow:fix-open-issue
 ```
 
 Validate:
@@ -26,7 +26,7 @@ Validate:
 claude plugin validate /path/to/agentic-workflow --strict
 ```
 
-What the plugin owns: the `skills/` tree (all 8 skills). The `rtk` PreToolUse hook is installed separately via `rtk init -g`.
+What the plugin owns: the `skills/` tree (all 6 skills). The `rtk` PreToolUse hook is installed separately via `rtk init -g`.
 
 ## 2. install.sh (per-harness settings)
 

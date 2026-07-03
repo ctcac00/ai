@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Runs /agent-loop once as a headless Claude Code session.
+# Runs /fix-open-issue once as a headless Claude Code session.
 # Designed to be called from cron. Uses a lock plus PID file to enforce one local process.
+# Uses its own lock/PID/log namespace.
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-LOG_DIR="$REPO_DIR/.agent-logs"
-LOCK_FILE="$REPO_DIR/.agent-loop.lock"
-PID_FILE="$REPO_DIR/.agent-loop.pid"
+LOG_DIR="$REPO_DIR/.fix-open-issue-logs"
+LOCK_FILE="$REPO_DIR/.fix-open-issue.lock"
+PID_FILE="$REPO_DIR/.fix-open-issue.pid"
 
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d_%H-%M-%S).log"
@@ -19,7 +20,7 @@ if ! flock -n 9; then
   if [ -s "$PID_FILE" ]; then
     running_pid="$(<"$PID_FILE")"
   fi
-  echo "$(date): agent-loop already running (pid $running_pid), skipping." | tee -a "$LOG_DIR/skipped.log"
+  echo "$(date): fix-open-issue already running (pid $running_pid), skipping." | tee -a "$LOG_DIR/skipped.log"
   exit 0
 fi
 
@@ -29,7 +30,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "$(date): Starting agent-loop" | tee "$LOG_FILE"
+echo "$(date): Starting fix-open-issue" | tee "$LOG_FILE"
 
 # Load user environment (gh, node, npx, etc.)
 # shellcheck disable=SC1091
@@ -38,8 +39,8 @@ echo "$(date): Starting agent-loop" | tee "$LOG_FILE"
 
 cd "$REPO_DIR"
 
-claude --print "/agent-loop" \
+claude --print "/fix-open-issue" \
   --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Task,TodoWrite" \
   2>&1 | tee -a "$LOG_FILE"
 
-echo "$(date): agent-loop complete" | tee -a "$LOG_FILE"
+echo "$(date): fix-open-issue complete" | tee -a "$LOG_FILE"

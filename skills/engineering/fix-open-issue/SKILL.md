@@ -17,7 +17,7 @@ Rules:
 - Implement **exactly 1 issue per run**. Only exception: a hard dependency pair that cannot compile or pass tests when split (see Step 2).
 - Only open issues labeled `ready-for-agent`.
 - Skip issues already addressed by an open PR, merged PR, or commit on `origin/main`.
-- An issue blocked by another issue is **unblocked** once the blocker is closed, or the blocker has an open PR whose CI is **green**. Stack the new PR directly on top of that blocker's own PR branch — not on the current topmost stack branch, if they differ.
+- An issue blocked by another issue is **unblocked** once the blocker is closed, or the blocker has an open PR whose CI is **green**. Stack the new PR on top of that blocker's PR.
 - **Never work downstream of a dependency whose PR has failing or pending CI.** Green CI on the direct parent is required before stacking on it (the parent branch contains all lower commits, so its green CI covers the stack beneath it).
 - Cap the open stack at **5** `agent-stack/*` PRs. At capacity, exit without starting new work.
 - If the upstream stack PR has unaddressed review feedback according to `pr-feedback-audit --pr X`, do **not** implement a new issue. Run `address-pr-feedback --pr X` for that PR instead.
@@ -63,7 +63,7 @@ git push --force-with-lease origin agent-stack/issue-N   # push every branch the
 - Use `--onto origin/main <old-base-sha>` so only the stack's own commits replay.
 - Verify no branch gained duplicate commits (`git log --oneline origin/main..agent-stack/issue-N` per branch) before force-pushing.
 - **On conflict: `git rebase --abort`, do not force-push, comment on the affected PR that a manual restack is needed, exit.**
-- After force-pushing, CI re-runs on the moved branches from scratch, invalidating any CI status read in Step 1A before this restack. Re-run Step 1A's CI gate against the topmost branch's new commit before proceeding to Step 1C: poll `gh pr checks <topmost-pr>` (or re-fetch `statusCheckRollup`) until it is green, or exit with `Parent PR #X CI not green — exiting.` if it fails.
+- After force-pushing, CI re-runs on the moved branches; wait for the topmost PR's checks before stacking on it (the CI gate in 1A applies).
 
 If there is no open stack, skip this step.
 
@@ -107,13 +107,11 @@ Pick the **lowest-numbered eligible issue**. Then scan its title, body, and comm
 
 ```bash
 gh issue view N --json number,state,url
-gh pr list --state open --search "#N" --json number,title,headRefName,statusCheckRollup,url --limit 20
+gh pr list --state open --search "#N" --json number,headRefName,statusCheckRollup,url --limit 20
 ```
 
-`--search "#N"` matches substrings (`#4` also hits `#42`). As in Step 1C, confirm each returned PR references the blocker as a whole token before trusting its CI status; discard false matches.
-
 - Blocker **closed** → satisfied.
-- Blocker open with an **open PR whose CI is all green** → satisfied. Record that PR's `headRefName` as the base for Step 3 — stack directly on the blocker's own branch, which may not be the current topmost stack branch.
+- Blocker open with an **open PR whose CI is all green** → satisfied. The dependency's changes are already in the stack; proceed and stack on top.
 - Blocker open with a PR whose **CI is failing or pending** → skip this issue this run. Never build downstream of non-green CI.
 - Blocker **open with no PR** and eligible → implement the blocker instead this run (re-select it as the issue).
 - Blocker open with no PR and not eligible → skip this issue this run.
@@ -128,8 +126,6 @@ Base: agent-stack/issue-P (PR #X, CI green)  |  or: main
 Stack depth before this run: D/5
 ```
 
-`agent-stack/issue-P` here is the blocker's own branch when the seed has a satisfied blocker (per Step 2), and only falls back to the topmost open stack branch when the seed has no blocker.
-
 ---
 
 ## Step 3: Create a worktree on top of the stack
@@ -137,11 +133,10 @@ Stack depth before this run: D/5
 ```bash
 git worktree prune
 
-# Base is the branch selected in Step 2 (blocker's own branch if the seed had one,
-# otherwise the topmost open stack branch):
+# On top of an existing stack (topmost open stack branch):
 git worktree add -b agent-stack/issue-N .claude/worktrees/stack-N agent-stack/issue-PARENT
 
-# Or, bottom of a fresh stack (no open stack, no blocker):
+# Or, bottom of a fresh stack:
 git worktree add -b agent-stack/issue-N .claude/worktrees/stack-N origin/main
 ```
 

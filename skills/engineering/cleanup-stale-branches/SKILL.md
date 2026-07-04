@@ -20,7 +20,7 @@ The fix is to also ask GitHub which PR head branches were merged (`gh pr list --
 Run the bundled detection script from anywhere inside the repo:
 
 ```bash
-bash "$(git rev-parse --show-toplevel)/skills/engineering/cleanup-stale-branches/scripts/find_stale.sh"
+bash "$(git rev-parse --show-toplevel)/.claude/skills/cleanup-stale-branches/scripts/find_stale.sh"
 ```
 
 It fetches+prunes, resolves the default branch, and prints one tab-separated line per stale local branch:

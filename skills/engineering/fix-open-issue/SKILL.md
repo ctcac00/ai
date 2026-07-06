@@ -1,40 +1,39 @@
 ---
 name: fix-open-issue
-description: AFK agent loop — implements one ready-for-agent GitHub issue per run in a lean context, stacking each PR on the previous run's branch. An issue whose blocker has an open PR with green CI is unblocked; never work downstream of a dependency without green CI.
+description: AFK agent loop — implements one ready-for-agent GitHub issue per run in a lean context. PRs branch off main by default and stack on an open agent PR only when a declared dependency or predicted file overlap requires it; never work downstream of a dependency without green CI.
 model: sonnet
 ---
 
-# Fix Open Issue (stacked PRs)
+# Fix Open Issue (parallel PRs, stack on overlap)
 
 You are running as the only scheduled agent. Complete exactly **one issue** per run, then exit. `scripts/run.sh` enforces a singleton process.
 
-Each run branches off the previous run's PR head instead of stale `origin/main`, so consecutive runs see each other's in-flight edits to shared hub files (i18n locales, theme tokens, route registry, barrels).
+Goal: **minimise merge conflicts between agent PRs.** Each run branches off `origin/main` by default. Stack on an open agent PR only when the issue declares a dependency on it, or the issue's predicted files overlap that PR's changed files. Unrelated issues ship as parallel PRs that merge independently.
 
-> **Merge-strategy caveat:** squash-merging the bottom PR lands its commits on `main` as one new SHA, so upper branches still carry the originals and need the `--onto` restack in Step 1B. When merging a stack manually, prefer rebase-merge or merge-commit for the bottom PR.
+**Hub files are excluded from overlap prediction:** `app/src/shared/i18n/locales/*`, `app/src/shared/theme.ts`, and barrel `index.ts` files. Nearly every UI issue appends to them; the edits are append-only, so conflicts there are rare and trivial — counting them would re-serialise all work into one stack.
 
-Rules:
+> **Merge-strategy caveat (stacks only):** squash-merging the bottom PR of a chain lands its commits on `main` as one new SHA, so upper branches still carry the originals and need the `--onto` restack in Step 1B. When merging a chain manually, prefer rebase-merge or merge-commit for the bottom PR.
+
+Invariants (base selection, gates, and restacks live in the steps):
 
 - Implement **exactly 1 issue per run**. Only exception: a hard dependency pair that cannot compile or pass tests when split (see Step 2).
-- Only open issues labeled `ready-for-agent`.
-- Skip issues already addressed by an open PR, merged PR, or commit on `origin/main`.
-- An issue blocked by another issue is **unblocked** once the blocker is closed, or the blocker has an open PR whose CI is **green**. Stack the new PR on top of that blocker's PR.
-- **Never work downstream of a dependency whose PR has failing or pending CI.** Green CI on the direct parent is required before stacking on it (the parent branch contains all lower commits, so its green CI covers the stack beneath it).
-- Cap the open stack at **5** `agent-stack/*` PRs. At capacity, exit without starting new work.
-- If the upstream stack PR has unaddressed review feedback according to `pr-feedback-audit --pr X`, do **not** implement a new issue. Run `address-pr-feedback --pr X` for that PR instead.
-- One branch, one worktree, one PR per run. Each PR's base is the topmost open `agent-stack/*` branch (or `main` for the bottom of the stack).
+- Only open issues labeled `ready-for-agent`. Skip issues already addressed by an open PR, merged PR, or commit on `origin/main`.
+- **Never work downstream of a dependency whose PR has failing or pending CI.** Green CI on the direct parent is required before stacking on it (the parent branch contains all lower commits, so its green CI covers the chain beneath it).
+- Chains cap at depth **5**; parallel PRs and chain count are uncapped — a full chain only blocks stacking onto it.
+- One branch, one worktree, one PR per run.
 - Every PR body must include the close keyword line `Closes #N` for the selected issue. Title references like `(#N)` do not count.
 
 ---
 
-## Step 1: Assess the stack and inventory ready issues
+## Step 1: Assess open agent PRs and inventory ready issues
 
 ```bash
 git fetch origin main
 ```
 
-### 1A. Read the current stack and enforce the depth cap
+### 1A. Map open agent PRs into chains
 
-List open agent-stack PRs, oldest first (bottom to top), with CI status:
+List open agent PRs, oldest first, with base branches and CI status:
 
 ```bash
 gh pr list \
@@ -44,28 +43,28 @@ gh pr list \
   --jq 'map(select(.headRefName | startswith("agent-stack/"))) | sort_by(.createdAt)'
 ```
 
-If **5 or more** open `agent-stack/*` PRs exist, print `Stack at capacity (5 open) — exiting.` and stop.
+Reconstruct chains: a PR whose base is another agent PR's head branch is stacked on it; a PR based on `main` is a chain bottom. A standalone PR is a chain of depth 1. Record each chain's top branch, depth, and top-PR CI status.
 
-**CI gate:** if the topmost open stack PR's CI is failing or still pending, print `Parent PR #X CI not green — exiting.` and stop. Do not stack on a branch without green CI.
+**Feedback gate:** audit **every** open agent PR with `pr-feedback-audit --pr X`, oldest first. On the first `UNADDRESSED_FEEDBACK=true`, print `PR #X has unaddressed feedback - run address-pr-feedback --pr X instead.` and stop this skill. Keep feedback detection rules in `pr-feedback-audit`; this skill only consumes the gate result.
 
-**Feedback gate:** audit the topmost open stack PR with `pr-feedback-audit --pr X`. If the audit reports `UNADDRESSED_FEEDBACK=true`, print `Parent PR #X has unaddressed feedback - run address-pr-feedback --pr X instead.` and stop this skill. Keep feedback detection rules in `pr-feedback-audit`; this skill only consumes the gate result before stacking more work.
+There is no global CI gate — CI is checked per chosen parent in Step 2.
 
-### 1B. Restack onto fresh main if the bottom moved
+### 1B. Restack broken chains
 
-If `origin/main` has advanced past the stack's bottom, or the bottom PR was merged/closed, rebase the **whole stack in one operation** from the topmost branch using `--update-refs` (never rebase each branch individually — that duplicates parent commits and corrupts the stack):
+For each chain whose **bottom PR was merged or closed**, rebase the **whole chain in one operation** from its topmost branch using `--update-refs` (never rebase each branch individually — that duplicates parent commits and corrupts the chain):
 
 ```bash
-# Check out the topmost open stack branch in a scratch worktree, then:
+# Check out the chain's topmost branch in a scratch worktree, then:
 git rebase --update-refs --onto origin/main <merged-or-old-bottom-base-sha> agent-stack/issue-TOP
 git push --force-with-lease origin agent-stack/issue-N   # push every branch the rebase moved
 ```
 
-- Use `--onto origin/main <old-base-sha>` so only the stack's own commits replay.
+- Use `--onto origin/main <old-base-sha>` so only the chain's own commits replay.
 - Verify no branch gained duplicate commits (`git log --oneline origin/main..agent-stack/issue-N` per branch) before force-pushing.
 - **On conflict: `git rebase --abort`, do not force-push, comment on the affected PR that a manual restack is needed, exit.**
-- After force-pushing, CI re-runs on the moved branches; wait for the topmost PR's checks before stacking on it (the CI gate in 1A applies).
+- After force-pushing, CI re-runs on the moved branches; wait for the top PR's checks before stacking on it (the per-parent CI check in Step 2 applies).
 
-If there is no open stack, skip this step.
+If `origin/main` merely advanced, restack **only** the chain this run stacks onto (before creating the worktree in Step 3); leave other chains alone. Parallel `main`-based PRs never need restacking.
 
 ### 1C. List candidate issues
 
@@ -101,9 +100,9 @@ If no candidates remain, print `No qualifying issues — exiting.` and stop.
 
 ---
 
-## Step 2: Select one issue
+## Step 2: Select one issue and choose its base
 
-Pick the **lowest-numbered eligible issue**. Then scan its title, body, and comments for dependency phrases (case-insensitive): `blocked by #N`, `depends on #N`, `requires #N`, `after #N`, `needs #N first`. For each blocker `#N`:
+Pick the **lowest-numbered eligible issue**. Then scan its title, body, and comments for dependency phrases (case-insensitive): `blocked by #N`, `depends on #N`, `requires #N`, `after #N`, `needs #N first`, `conflicts with PR #N`. For each blocker `#N`:
 
 ```bash
 gh issue view N --json number,state,url
@@ -111,32 +110,28 @@ gh pr list --state open --search "#N" --json number,headRefName,statusCheckRollu
 ```
 
 - Blocker **closed** → satisfied.
-- Blocker open with an **open PR whose CI is all green** → satisfied. The dependency's changes are already in the stack; proceed and stack on top.
+- Blocker open with an **open PR whose CI is all green** → satisfied, provided that chain's depth < 5 (otherwise skip this issue this run). Base = top branch of that PR's chain.
 - Blocker open with a PR whose **CI is failing or pending** → skip this issue this run. Never build downstream of non-green CI.
 - Blocker **open with no PR** and eligible → implement the blocker instead this run (re-select it as the issue).
 - Blocker open with no PR and not eligible → skip this issue this run.
 - Dependency cycle → skip the cycle, comment on the involved issues.
 - **Atomic exception:** co-implement two issues in one PR only when they cannot compile or pass tests when split. When in doubt, split into stacked PRs.
 
-Write down the decision:
+If no declared dependency decides the base, predict overlap: guess the files the issue touches (title/body/comments plus its domain slice — `app/src/domains/<slice>`, `app/app/` routes, `website/`), list each open agent PR's changed files with `gh pr diff N --name-only`, drop hub files from both sides, intersect. Overlap → base = **top branch of that PR's chain**, provided its top CI is green and depth < 5 (otherwise skip this issue this run and try the next candidate). No overlap → base = `main`. Prediction only picks the starting base — Step 5B's merge-test catches mispredictions.
 
-```text
-Selected: #N TITLE — reason
-Base: agent-stack/issue-P (PR #X, CI green)  |  or: main
-Stack depth before this run: D/5
-```
+Write down the decision on one line: `Selected: #N — base main | agent-stack/issue-P (overlap: FILES / depends on #M)`.
 
 ---
 
-## Step 3: Create a worktree on top of the stack
+## Step 3: Create a worktree on the chosen base
 
 ```bash
 git worktree prune
 
-# On top of an existing stack (topmost open stack branch):
+# Stacking on a chain (its topmost branch):
 git worktree add -b agent-stack/issue-N .claude/worktrees/stack-N agent-stack/issue-PARENT
 
-# Or, bottom of a fresh stack:
+# Parallel PR off main:
 git worktree add -b agent-stack/issue-N .claude/worktrees/stack-N origin/main
 ```
 
@@ -174,7 +169,23 @@ If the change touches `website/`, run its lint/test from `website/` too. Fix fai
 
 ---
 
-## Step 6: Submit one stacked PR
+## Step 5B: Merge-test against open agent PRs
+
+Prediction can be wrong. Before opening the PR, prove the branch merges cleanly with every open agent chain it does not share history with:
+
+```bash
+git fetch origin 'refs/heads/agent-stack/*:refs/remotes/origin/agent-stack/*'
+# For each chain top NOT in this branch's ancestry:
+git merge-tree --write-tree HEAD origin/agent-stack/issue-M   # requires git ≥ 2.38; conflict output = real conflict
+```
+
+- All clean → keep the planned base.
+- Conflict with a chain whose top CI is **green** → rebase this branch onto that chain's top, make it the PR base, re-run Step 5 and this merge-test.
+- Conflict with a chain whose top CI is **failing or pending** → do not stack on it, and do not open a conflicting parallel PR. Find the issue #K that PR #M closes (`gh pr view M --json closingIssuesReferences`). Discard the branch, comment on the issue: `Conflicts with PR #M — treat as blocked by #K (the issue #M closes).`, exit without a PR. The next run's dependency scan reads issue comments and will stack this issue once that chain is green.
+
+---
+
+## Step 6: Submit one PR
 
 ```bash
 git push -u origin agent-stack/issue-N
@@ -198,17 +209,13 @@ BRIEF_DESCRIPTION_OF_THE_CHANGE
 EOF
 ```
 
-For the bottom of a fresh stack, use `--base main` and omit the `## Stack` section.
+For a parallel PR, use `--base main` and omit the `## Stack` section.
 
 ---
 
 ## Step 7: Exit
 
-```text
-Done: PR #PR_NUMBER created for issue #N (TITLE), stacked on #PARENT_PR. Stack depth now D/5.
-```
-
-Then stop. The scheduler re-invokes `scripts/run.sh` for the next issue.
+Print one line — `Done: PR #PR_NUMBER for issue #N, base BASE.` — then stop. The scheduler re-invokes `scripts/run.sh` for the next issue.
 
 ---
 
@@ -225,5 +232,6 @@ Then stop. The scheduler re-invokes `scripts/run.sh` for the next issue.
 ## Failure handling
 
 - Restack conflict in Step 1B: comment on the affected PR, do not force-push, exit.
+- Merge-test conflict with a non-green chain in Step 5B: comment on the issue, discard the branch, exit without a PR.
 - Issue blocked on missing info, or lint/tests cannot be made clean: comment on the issue with the blocker, remove `ready-for-agent`, add `needs-info`, exit without a PR.
 - Never push a failing build, force a conflicted rebase, or skip verification to ship faster.

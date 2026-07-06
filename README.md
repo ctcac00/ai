@@ -52,7 +52,6 @@ Also installs [find-skills](https://github.com/vercel-labs/skills) and [skill-cr
 
 - find-skills - skill.sh skills finder
 - skill-creator - to create new skills
-- mattpocock/skills - a collection of agentic workflow skills
 - caveman - for terse communication with LLMs
 
 ## 3. External dependencies
@@ -112,10 +111,9 @@ At a project level I use a variety of additional plugins, skills, and MCP server
 
 The third-party skills (in `.agents/skills/`) are installed via [skills.sh](https://skills.sh). Skills under `.claude/skills/` are custom skills I've written and committed to this repo — they don't need installing.
 
-```bash
-# Matt Pocock's collection (codebase-design, tdd, handoff, etc.)
-npx skills add mattpocock/skills
+The skills originally from Matt Pocock's `mattpocock/skills` collection (`codebase-design`, `tdd`, `handoff`, `triage`, `to-issues`, `to-prd`, etc.) are no longer installed separately — customised versions are vendored in this repo's `skills/engineering/` tree and ship with the `agentic-workflow` plugin. Credit to Matt Pocock for the originals.
 
+```bash
 # Vercel's skills (react, composition patterns, view transitions)
 npx skills add vercel-labs/agent-skills
 

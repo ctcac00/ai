@@ -2,6 +2,7 @@
 name: address-pr-feedback
 description: Implements fixes for actionable, unaddressed GitHub PR feedback after first using pr-feedback-audit to find the pending comments. Use when asked to address PR feedback, work through review comments, fix open PR reviews, resolve PR comments, or follow up on requested PR changes.
 model: sonnet
+disable-model-invocation: true
 ---
 
 # Address PR Feedback

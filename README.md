@@ -26,7 +26,7 @@ Validate:
 claude plugin validate /path/to/agentic-workflow --strict
 ```
 
-What the plugin owns: the `skills/` tree (all 6 skills). The `rtk` PreToolUse hook is installed separately via `rtk init -g`.
+What the plugin owns: the entire `skills/` tree. The `rtk` PreToolUse hook is installed separately via `rtk init -g`.
 
 ## 2. install.sh (per-harness settings)
 
@@ -86,15 +86,12 @@ At a project level I use a variety of additional plugins, skills, and MCP server
 | codebase-design                  | `.agents/skills/codebase-design`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | diagnosing-bugs                  | `.agents/skills/diagnosing-bugs`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | domain-modeling                  | `.agents/skills/domain-modeling`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
-| grill-me                         | `.agents/skills/grill-me`                         | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
-| grill-with-docs                  | `.agents/skills/grill-with-docs`                  | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
-| grilling                         | `.agents/skills/grilling`                         | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | handoff                          | `.agents/skills/handoff`                          | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
+| implement                        | `.agents/skills/implement`                        | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | improve-codebase-architecture    | `.agents/skills/improve-codebase-architecture`    | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
-| prototype                        | `.agents/skills/prototype`                        | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
+| interview                        | `.agents/skills/interview`                        | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | supabase                         | `.agents/skills/supabase`                         | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | supabase-postgres-best-practices | `.agents/skills/supabase-postgres-best-practices` | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
-| tdd                              | `.agents/skills/tdd`                              | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | to-issues                        | `.agents/skills/to-issues`                        | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | to-prd                           | `.agents/skills/to-prd`                           | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | triage                           | `.agents/skills/triage`                           | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
@@ -111,7 +108,7 @@ At a project level I use a variety of additional plugins, skills, and MCP server
 
 The third-party skills (in `.agents/skills/`) are installed via [skills.sh](https://skills.sh). Skills under `.claude/skills/` are custom skills I've written and committed to this repo — they don't need installing.
 
-The skills originally from Matt Pocock's `mattpocock/skills` collection (`codebase-design`, `tdd`, `handoff`, `triage`, `to-issues`, `to-prd`, etc.) are no longer installed separately — customised versions are vendored in this repo's `skills/engineering/` tree and ship with the `agentic-workflow` plugin. Credit to Matt Pocock for the originals.
+The skills originally from Matt Pocock's `mattpocock/skills` collection (`codebase-design`, `handoff`, `triage`, `to-issues`, `to-prd`, etc.) are no longer installed separately — customised versions are vendored in this repo's `skills/engineering/` tree and ship with the `agentic-workflow` plugin. Some were renamed or merged along the way: `tdd` → `implement`; `grill-me`, `grill-with-docs`, and `grilling` merged into `interview`. `prototype` was dropped entirely, with no replacement. Credit to Matt Pocock for the originals.
 
 ```bash
 # Vercel's skills (react, composition patterns, view transitions)

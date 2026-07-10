@@ -2,6 +2,7 @@
 name: fix-open-issue
 description: AFK agent loop — implements one ready-for-agent GitHub issue per run in a lean context. PRs branch off main by default and stack on an open agent PR only when a declared dependency or predicted file overlap requires it; never work downstream of a dependency without green CI.
 model: sonnet
+disable-model-invocation: true
 ---
 
 # Fix Open Issue (parallel PRs, stack on overlap)

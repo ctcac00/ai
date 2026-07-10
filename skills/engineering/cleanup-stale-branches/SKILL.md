@@ -1,6 +1,7 @@
 ---
 name: cleanup-stale-branches
 description: Clean up stale local and remote git branches (and their worktrees) that have already been merged. Use this whenever the user mentions stale branches, leftover branches, branch cleanup, pruning branches, "too many branches", merged branches piling up, cleaning up worktrees, or wants to tidy up after agents/PRs have created lots of throwaway branches. Handles squash-merged PRs that `git branch --merged` alone cannot detect.
+disable-model-invocation: true
 ---
 
 # Cleanup Stale Branches
@@ -30,6 +31,7 @@ It fetches+prunes, resolves the default branch, and prints one tab-separated lin
 ```
 
 `reason` is one of:
+
 - `ancestor-merged` — tip is an ancestor of the default branch (normal/rebase merge)
 - `squash-merged` — branch name matches a merged PR head on GitHub (the squash case)
 - `gone-upstream` — its upstream remote branch was deleted (`[gone]` after prune)
@@ -47,15 +49,19 @@ If the list is long, it's fine to ask "delete all N, or do you want to exclude a
 For each branch the user approved, in this order:
 
 1. **Worktree first** (if the third column isn't `-`). A branch checked out in a worktree can't be deleted until the worktree is gone:
+
    ```bash
    git worktree remove <worktree_path>
    ```
+
    If it refuses because of uncommitted changes, **stop and ask** — don't `--force` over someone's work. Untracked-but-trivial cases (e.g. build artifacts) can be forced only after you've looked and confirmed there's nothing valuable.
 
 2. **Local branch:**
+
    ```bash
    git branch -d <branch>
    ```
+
    Use `-d` (safe delete), not `-D`. For squash-merged branches `-d` will complain that the branch isn't fully merged — that's expected, because the commits were squashed. Only in that case, and only for a branch the detector flagged as `squash-merged` and the user approved, fall back to `git branch -D <branch>`.
 
 3. **Remote branch**, if it still exists:

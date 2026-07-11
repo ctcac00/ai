@@ -17,7 +17,6 @@
     "npm:pi-sessions",
     "npm:pi-notify",
     "npm:pi-rewind",
-    "npm:@ssweens/pi-handoff",
     "npm:pi-image-subagent",
     "npm:pi-web-extension",
     "npm:pi-fast-subagent",

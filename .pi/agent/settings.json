@@ -1,30 +1,27 @@
 {
-  "lastChangelogVersion": "0.78.1",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
-  "defaultThinkingLevel": "high",
+  "lastChangelogVersion": "0.80.3",
+  "defaultProvider": "zai",
+  "defaultModel": "glm-5.2",
+  "defaultThinkingLevel": "medium",
   "packages": [
     "npm:pi-ask-user",
     "npm:pi-mcp-adapter",
     "git:github.com/VandeeFeng/pi-memory-md",
     "npm:@devkade/pi-plan",
-    "npm:pi-simplify",
     "npm:pi-add-dir",
     "npm:pi-prompt-template-model",
-    "npm:pi-slopchop",
     "npm:@tmustier/pi-usage-extension",
     "npm:@tmustier/pi-raw-paste",
-    "git:github.com/tintinweb/pi-manage-todo-list",
     "npm:pi-btw",
     "npm:@marckrenn/pi-sub-core",
     "npm:pi-sessions",
     "npm:pi-notify",
     "npm:pi-rewind",
     "npm:@ssweens/pi-handoff",
-    "npm:pi-lens",
     "npm:pi-image-subagent",
     "npm:pi-web-extension",
-    "npm:pi-fast-subagent"
+    "npm:pi-fast-subagent",
+    "npm:pi-lsp"
   ],
   "theme": "nightowl",
   "subagents": {
@@ -57,4 +54,3 @@
     }
   }
 }
-

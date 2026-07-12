@@ -3,8 +3,8 @@
  *
  * Custom footer styled with Night Owl colors.
  *
- * LEFT:  🌿 <branch> <git-status> · <repo/dir>
- * RIGHT: 🧠 <thinking> · ○ <model> · 💰 $cost · ⏱ Xm Xs · X tokens
+ * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · ▓▓░░ 45% · $cost
+ * RIGHT: ○ <model> · <thinking>
  */
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";
@@ -42,20 +42,56 @@ type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 function thinkingLabel(level: ThinkingLevel): string {
   switch (level) {
-    case "off":     return dim("🧠 off");
-    case "minimal": return dim("🧠 minimal");
-    case "low":     return blue("🧠 low");
-    case "medium":  return yellow("🧠 medium");
-    case "high":    return purple("🧠 high");
-    case "xhigh":   return cyan("🧠 max");
+    case "off":     return dim("off");
+    case "minimal": return dim("minimal");
+    case "low":     return blue("low");
+    case "medium":  return yellow("medium");
+    case "high":    return purple("high");
+    case "xhigh":   return cyan("max");
   }
 }
 
 // ── Git status ───────────────────────────────────────────────────────────────
 interface GitStatus {
-  dirty: boolean;
+  added: number;
+  modified: number;
+  deleted: number;
+  untracked: number;
   ahead: number;
   behind: number;
+}
+
+const EMPTY_STATUS: GitStatus = {
+  added: 0, modified: 0, deleted: 0, untracked: 0, ahead: 0, behind: 0,
+};
+
+/**
+ * Parse `git status --porcelain` output into working-tree change counts.
+ * Each file is counted once, bucketed by its most significant change:
+ *   +  added        (A)
+ *   -  deleted      (D)
+ *   !  modified     (M, R, C, or unmerged U)
+ *   ?  untracked    (??)
+ */
+function parsePorcelain(output: string): Pick<GitStatus, "added" | "modified" | "deleted" | "untracked"> {
+  let added = 0, modified = 0, deleted = 0, untracked = 0;
+  for (const raw of output.split("\n")) {
+    if (raw.length < 2) continue;
+    const x = raw[0]!;
+    const y = raw[1]!;
+    if (x === "?" && y === "?") { untracked++; continue; }
+    if (x === "A" || y === "A") { added++; continue; }
+    if (x === "D" || y === "D") { deleted++; continue; }
+    if (
+      x === "M" || y === "M" ||
+      x === "R" || y === "R" ||
+      x === "C" || y === "C" ||
+      x === "U" || y === "U"
+    ) {
+      modified++;
+    }
+  }
+  return { added, modified, deleted, untracked };
 }
 
 async function fetchGitStatus(cwd: string, pi: ExtensionAPI): Promise<GitStatus> {
@@ -64,42 +100,34 @@ async function fetchGitStatus(cwd: string, pi: ExtensionAPI): Promise<GitStatus>
       pi.exec("git", ["status", "--porcelain"], { cwd }),
       pi.exec("git", ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], { cwd }),
     ]);
-    const dirty = statusResult.stdout.trim().length > 0;
+    const counts = parsePorcelain(statusResult.stdout);
     let ahead = 0, behind = 0;
     const parts = aheadBehindResult.stdout.trim().split(/\s+/);
     if (parts.length === 2) {
       behind = parseInt(parts[0] ?? "0", 10) || 0;
       ahead  = parseInt(parts[1] ?? "0", 10) || 0;
     }
-    return { dirty, ahead, behind };
+    return { ...counts, ahead, behind };
   } catch {
-    return { dirty: false, ahead: 0, behind: 0 };
+    return { ...EMPTY_STATUS };
   }
 }
 
 function gitStatusStr(branch: string | null, status: GitStatus): string {
-  const branchStr = branch ? blue(`🌿 ${branch}`) : dim("🌿 detached");
-  const dot = status.dirty ? yellow("●") : green("●");
-  const indicators: string[] = [dot];
-  if (status.ahead  > 0) indicators.push(cyan(`↑${status.ahead}`));
-  if (status.behind > 0) indicators.push(red(`↓${status.behind}`));
-  return branchStr + " " + indicators.join(" ");
+  const branchStr = branch ? blue(branch) : dim("detached");
+  const indicators: string[] = [];
+  if (status.added > 0)     indicators.push(green(`+${status.added}`));
+  if (status.deleted > 0)   indicators.push(red(`-${status.deleted}`));
+  if (status.modified > 0)  indicators.push(yellow(`!${status.modified}`));
+  if (status.untracked > 0) indicators.push(dim(`?${status.untracked}`));
+  if (status.ahead > 0)     indicators.push(cyan(`↑${status.ahead}`));
+  if (status.behind > 0)    indicators.push(red(`↓${status.behind}`));
+  return indicators.length > 0 ? `${branchStr} ${indicators.join(" ")}` : branchStr;
 }
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
-function fmtTokens(n: number): string {
-  if (n === 0) return "0.0k";
-  return `${(n / 1000).toFixed(1)}k`;
-}
-
-function fmtTime(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
-}
-
 function fmtCost(cost: number): string {
-  const str = `💰 $${cost.toFixed(1)}`;
+  const str = `$${cost.toFixed(1)}`;
   return cost === 0 ? green(str) : yellow(str);
 }
 
@@ -118,9 +146,7 @@ function contextBar(percent: number | null | undefined): string {
 // ── Extension ────────────────────────────────────────────────────────────────
 export default function (pi: ExtensionAPI) {
   let thinkingLevel: ThinkingLevel = "off";
-  let gitStatus: GitStatus = { dirty: false, ahead: 0, behind: 0 };
-  let agentStartTime: number | null = null;
-  let elapsedMs = 0;
+  let gitStatus: GitStatus = { ...EMPTY_STATUS };
   // requestRender handle — set once footer is registered
   let requestRender: (() => void) | null = null;
 
@@ -128,18 +154,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("thinking_level_select", (event) => {
     thinkingLevel = event.level as ThinkingLevel;
-    requestRender?.();
-  });
-
-  pi.on("agent_start", () => {
-    agentStartTime = Date.now();
-  });
-
-  pi.on("agent_end", () => {
-    if (agentStartTime !== null) {
-      elapsedMs += Date.now() - agentStartTime;
-      agentStartTime = null;
-    }
     requestRender?.();
   });
 
@@ -152,8 +166,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     thinkingLevel = (pi.getThinkingLevel() ?? "off") as ThinkingLevel;
-    elapsedMs = 0;
-    agentStartTime = null;
 
     // Initial git status
     gitStatus = await fetchGitStatus(ctx.cwd, pi);
@@ -177,36 +189,27 @@ export default function (pi: ExtensionAPI) {
         invalidate() {},
 
         render(width: number): string[] {
-          // ── Session stats ──
-          let inputTokens = 0;
-          let outputTokens = 0;
-          let totalCost   = 0;
+          // ── Session cost ──
+          let totalCost = 0;
           for (const e of ctx.sessionManager.getBranch()) {
             if (e.type === "message" && e.message.role === "assistant") {
               const m = e.message as AssistantMessage;
-              inputTokens  += m.usage.input ?? 0;
-              outputTokens += m.usage.output ?? 0;
-              totalCost   += m.usage.cost?.total ?? 0;
+              totalCost += m.usage.cost?.total ?? 0;
             }
           }
-
-          // ── Elapsed time ──
-          const elapsed = elapsedMs + (agentStartTime !== null ? Date.now() - agentStartTime : 0);
 
           // ── Context usage ──
           const usage = ctx.getContextUsage();
 
-          // ── LEFT: repo · 🌿 branch ● [↑↓] · ▓▓░░ 45% · 💰 cost · ⏱ time · tokens ──
+          // ── LEFT: repo · branch +N -N !N ?N ↑N ↓N · ▓▓░░ 45% · $cost ──
           const branch  = footerData.getGitBranch();
           const repoDir = ctx.cwd.split("/").pop() ?? ctx.cwd;
-          const leftExtra = [
-            fmtCost(totalCost),
-            dim(`⏱ ${fmtTime(elapsed)}`),
-            dim(`↓${fmtTokens(inputTokens)} ↑${fmtTokens(outputTokens)}`),
-          ].join(SEP);
-          const left    = cyan(repoDir) + SEP + gitStatusStr(branch, gitStatus) + SEP + contextBar(usage?.percent) + SEP + leftExtra;
+          const left    = cyan(repoDir)
+            + SEP + gitStatusStr(branch, gitStatus)
+            + SEP + contextBar(usage?.percent)
+            + SEP + fmtCost(totalCost);
 
-          // ── RIGHT: ○ model · 🧠 thinking ──
+          // ── RIGHT: ○ model · thinking ──
           const modelStr = ctx.model?.id ? blue(`○ ${ctx.model.id}`) : dim("○ no model");
           const right = [
             modelStr,

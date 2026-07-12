@@ -3,6 +3,9 @@
   "keywords": [
     "pi-package"
   ],
+  "dependencies": {
+    "langfuse": "^3.0.0"
+  },
   "pi": {
     "extensions": [
       "./extensions"

@@ -168,6 +168,8 @@ npm run test
 
 If the change touches `website/`, run its lint/test from `website/` too. Fix failures — never suppress or skip tests.
 
+If lint or tests cannot be made clean for reasons the agent cannot resolve, comment on the issue with the blocker, remove `ready-for-agent`, add `needs-info`, and exit without a PR.
+
 ---
 
 ## Step 5B: Merge-test against open agent PRs
@@ -228,4 +230,4 @@ Print one line — `Done: PR #PR_NUMBER for issue #N, base BASE.` — then stop.
 0 * * * * /path/to/repo/skills/engineering/fix-open-issue/scripts/run.sh
 ```
 
-Every failure path above already ends in one of: comment + exit without a PR, or comment + abort without force-pushing. Never push a failing build, force a conflicted rebase, or skip verification to ship faster.
+Every unresolved blocker path above ends in comment + exit without a PR, or comment + abort without force-pushing. Never push a failing build, force a conflicted rebase, or skip verification to ship faster.

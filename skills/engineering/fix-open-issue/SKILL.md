@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Fix Open Issue (parallel PRs, stack on overlap)
 
-You are running as the only scheduled agent. Complete exactly **one issue** per run, then exit. `scripts/run.sh` enforces a singleton process.
+Complete exactly **one issue** per invocation, then exit.
 
 Goal: **minimise merge conflicts between agent PRs.** Each run branches off `origin/main` by default. Stack on an open agent PR only when the issue declares a dependency on it, or the issue's predicted files overlap that PR's changed files. Unrelated issues ship as parallel PRs that merge independently.
 
@@ -46,7 +46,7 @@ gh pr list \
 
 Reconstruct chains: a PR whose base is another agent PR's head branch is stacked on it; a PR based on `main` is a chain bottom. A standalone PR is a chain of depth 1. Record each chain's top branch, depth, and top-PR CI status.
 
-**Feedback gate:** audit **every** open agent PR with `pr-feedback-audit --pr X`, oldest first. On the first `UNADDRESSED_FEEDBACK=true`, print `PR #X has unaddressed feedback - run address-pr-feedback --pr X instead.` and stop this skill. Keep feedback detection rules in `pr-feedback-audit`; this skill only consumes the gate result.
+**Feedback gate:** audit **every** open agent PR with `pr-feedback-audit --pr X`, oldest first. On the first `UNADDRESSED_FEEDBACK=true`, invoke the `address-pr-feedback` skill with `--pr X`. That becomes this run's one unit of work — do not also implement an issue in the same run. When it finishes, print `Done: addressed feedback on PR #X.` and stop this skill. Keep feedback detection rules in `pr-feedback-audit`; this skill only consumes the gate result.
 
 There is no global CI gate — CI is checked per chosen parent in Step 2.
 
@@ -218,16 +218,8 @@ For a parallel PR, use `--base main` and omit the `## Stack` section.
 
 ## Step 7: Exit
 
-Print one line — `Done: PR #PR_NUMBER for issue #N, base BASE.` — then stop. The scheduler re-invokes `scripts/run.sh` for the next issue.
+Print one line — `Done: PR #PR_NUMBER for issue #N, base BASE.` — then stop.
 
 ---
-
-## Running continuously
-
-`scripts/run.sh` is the scheduler entry point (own lock, PID file, log dir). Example cron entry:
-
-```text
-0 * * * * /path/to/repo/skills/engineering/fix-open-issue/scripts/run.sh
-```
 
 Every unresolved blocker path above ends in comment + exit without a PR, or comment + abort without force-pushing. Never push a failing build, force a conflicted rebase, or skip verification to ship faster.

@@ -26,7 +26,7 @@ sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" \
 
 # 3. Create AVD
 echo "no" | avdmanager create avd \
-  -n verdant_test \
+  -n ui_validation_api33 \
   -k "system-images;android-33;google_apis;x86_64" \
   -d pixel_3a
 ```
@@ -96,9 +96,15 @@ First build: 15–20 min (memory constrained) or ~5 min (ample RAM). Subsequent 
 
 Keep the emulator alive during builds — OOM can kill it. Check `adb devices` after build completes.
 
-## Package name
+## App identity
 
-`com.lusoquantum.verdant`  — used in `adb shell appops`, `pm clear`, deep links, etc.
+Derive app identifiers from Expo config; never hardcode package names or schemes:
+
+```bash
+APP_CONFIG=$(cd app && npx expo config --json)
+ANDROID_PACKAGE=$(printf '%s' "$APP_CONFIG" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const c=JSON.parse(s).expo??JSON.parse(s);console.log(c.android?.package||"")})')
+APP_SCHEME=$(printf '%s' "$APP_CONFIG" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const c=JSON.parse(s).expo??JSON.parse(s);const v=c.scheme;console.log((Array.isArray(v)?v[0]:v)||c.slug||"")})')
+```
 
 ## Tapping UI elements
 
@@ -137,21 +143,21 @@ adb emu kill
 
 **Overlay permission intercepting first launch** — on first launch the app may redirect to Android "Display over other apps" settings instead of opening. Grant it ahead of time:
 ```bash
-adb shell appops set com.lusoquantum.verdant SYSTEM_ALERT_WINDOW allow
+adb shell appops set "$ANDROID_PACKAGE" SYSTEM_ALERT_WINDOW allow
 ```
 
 **Dev client can't connect to Metro / app stuck on connection screen** — the installed build is a dev launcher that requires Metro to serve the JS bundle. If `expo run:android` launched Metro but the app can't connect, try the deep link:
 ```bash
 # Ensure Metro is running on port 8081, then:
 adb shell am start -a android.intent.action.VIEW \
-  -d "exp+verdant://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081" \
-  com.lusoquantum.verdant
+  -d "exp+$APP_SCHEME://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081" \
+  "$ANDROID_PACKAGE"
 ```
 `10.0.2.2` is the emulator's alias for the host's `localhost`.
 
 **Crash state loop / "last time you opened this app it crashed"** — as a last resort, clear app data to reset state. Warning: this also resets onboarding (3 extra Continue taps) and logs you out:
 ```bash
-adb shell pm clear com.lusoquantum.verdant
+adb shell pm clear "$ANDROID_PACKAGE"
 ```
 
 **`ClassNotFoundException: expo.modules.kotlin.types.AnyTypeCache`** — verify `@expo/dom-webview` is excluded in `app/package.json` under `expo.autolinking.exclude`, then:

@@ -30,12 +30,14 @@ What the plugin owns: the entire `skills/` tree. The `rtk` PreToolUse hook is in
 
 ## 2. install.sh (per-harness settings)
 
-Installs harness binaries, copies `.claude/`, `.codex/`, `.pi/`, `.omp/`, `.config/opencode/` to their home locations, installs the `agentic-workflow` plugin, langfuse, caveman, and runs `rtk init` per harness.
+Installs harness binaries, copies `.claude/`, `.codex/`, `.pi/`, `.omp/`, `.config/opencode/` to their home locations, installs the `agentic-workflow` Claude plugin and pi package, langfuse, caveman, and runs `rtk init` per harness.
 
 ```bash
 ./install.sh              # all harnesses
 ./install.sh claude       # one: claude | codex | pi | omp | opencode
 ./install.sh --dry-run    # dry run, write nothing
+./install.sh --no-self-claude  # skip agentic-workflow claude plugin install
+./install.sh --no-self-pi      # skip agentic-workflow pi package install
 ./install.sh --no-rtk     # skip rtk install/init
 ./install.sh --no-langfuse
 ./install.sh --no-caveman
@@ -44,7 +46,7 @@ Installs harness binaries, copies `.claude/`, `.codex/`, `.pi/`, `.omp/`, `.conf
 
 Also installs [find-skills](https://github.com/vercel-labs/skills) and [skill-creator](https://github.com/anthropics/skills) globally (`npx skills add ... -g -y`, no prompts — skills.sh's own default agent fan-out), and registers the `anthropics/skills` marketplace for claude-code (`claude plugin marketplace add anthropics/skills`, source only — no plugin installed from it).
 
-- `.pi/agent/extensions/` (custom langfuse + leader-key + sub-usage + pi-context-probe TS extensions) copied verbatim, including build artifacts.
+- Custom pi extensions live at top-level **`extensions/`** (langfuse, leader-key, pi-context-probe, sub-usage, plus shared TS extensions such as todos, prompt-editor, which-key, session-breakdown, tool-manager, rtk, file-backup, files, night-owl-footer). They ship via the **pi-package** model — `package.json` declares `pi.extensions`/`pi.skills`/`pi.themes` and `pi install git:github.com/ctcac00/ai` installs them (build artifacts included), rather than being rsynced from `.pi/agent/extensions/`.
 - Pre-flight warnings (non-fatal) for `node` and `jq`.
 - `.pi/agent/settings.json` has a `pi-memory-md.memoryDir.repoUrl` placeholder (`<your-username>/memory`) — point it at your own memory repo before use.
 
@@ -100,15 +102,12 @@ At a project level I use a variety of additional plugins, skills, and MCP server
 | vercel-react-native-skills       | `.agents/skills/vercel-react-native-skills`       | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | vercel-react-view-transitions    | `.agents/skills/vercel-react-view-transitions`    | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
 | web-design-guidelines            | `.agents/skills/web-design-guidelines`            | Claude Code, Codex, Gemini CLI, OpenCode, Pi |
-| agent-loop                       | `.claude/skills/agent-loop`                       | Claude Code                                  |
-| agent-loop-stacking              | `.claude/skills/agent-loop-stacking`              | Claude Code                                  |
-| cleanup-stale-branches           | `.claude/skills/cleanup-stale-branches`           | Claude Code                                  |
-| pr-housekeeping                  | `.claude/skills/pr-housekeeping`                  | Claude Code                                  |
-| validate-ui                      | `.claude/skills/validate-ui`                      | Claude Code                                  |
 
-The third-party skills (in `.agents/skills/`) are installed via [skills.sh](https://skills.sh). Skills under `.claude/skills/` are custom skills I've written and committed to this repo — they don't need installing.
+The third-party skills (in `.agents/skills/`) are installed via [skills.sh](https://skills.sh). My own custom skills (`cleanup-stale-branches`, `validate-ui`, `fix-open-issue`, the PR-feedback skills, etc.) are **not** per-project — they ship globally from the `agentic-workflow` plugin/pi-package `skills/` tree (see §1), so they don't appear in a project's `.claude/skills/`.
 
 The skills originally from Matt Pocock's `mattpocock/skills` collection (`codebase-design`, `handoff`, `triage`, `to-issues`, `to-prd`, etc.) are no longer installed separately — customised versions are vendored in this repo's `skills/engineering/` tree and ship with the `agentic-workflow` plugin. Some were renamed or merged along the way: `tdd` → `implement`; `grill-me`, `grill-with-docs`, and `grilling` merged into `interview`. `prototype` was dropped entirely, with no replacement. Credit to Matt Pocock for the originals.
+
+The tree has since grown beyond those originals. `agent-loop` and `agent-loop-stacking` were replaced by **`fix-open-issue`**. Additional custom skills now ship here: `address-pr-feedback` and `pr-feedback-audit` (PR-review workflow), `okf` (plus `validate` and `visualize`) for Open-Knowledge-Format bundles, `update-changelog`, `cleanup-stale-branches`, and `validate-ui`.
 
 ```bash
 # Vercel's skills (react, composition patterns, view transitions)

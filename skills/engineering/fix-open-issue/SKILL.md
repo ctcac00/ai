@@ -168,6 +168,8 @@ npm run test
 
 If the change touches `website/`, run its lint/test from `website/` too. Fix failures — never suppress or skip tests.
 
+If lint or tests cannot be made clean for reasons the agent cannot resolve, comment on the issue with the blocker, remove `ready-for-agent`, add `needs-info`, and exit without a PR.
+
 ---
 
 ## Step 5B: Merge-test against open agent PRs
@@ -225,14 +227,7 @@ Print one line — `Done: PR #PR_NUMBER for issue #N, base BASE.` — then stop.
 `scripts/run.sh` is the scheduler entry point (own lock, PID file, log dir). Example cron entry:
 
 ```text
-0 * * * * /path/to/plant-care/.claude/skills/fix-open-issue/scripts/run.sh
+0 * * * * /path/to/repo/skills/engineering/fix-open-issue/scripts/run.sh
 ```
 
----
-
-## Failure handling
-
-- Restack conflict in Step 1B: comment on the affected PR, do not force-push, exit.
-- Merge-test conflict with a non-green chain in Step 5B: comment on the issue, discard the branch, exit without a PR.
-- Issue blocked on missing info, or lint/tests cannot be made clean: comment on the issue with the blocker, remove `ready-for-agent`, add `needs-info`, exit without a PR.
-- Never push a failing build, force a conflicted rebase, or skip verification to ship faster.
+Every unresolved blocker path above ends in comment + exit without a PR, or comment + abort without force-pushing. Never push a failing build, force a conflicted rebase, or skip verification to ship faster.

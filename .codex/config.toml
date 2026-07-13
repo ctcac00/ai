@@ -4,7 +4,7 @@ model_reasoning_effort = "high"
 
 [tui]
 theme = "catppuccin-mocha"
-status_line = ["project-name", "git-branch", "pull-request-number", "branch-changes", "approval-mode", "context-window-size", "context-used", "thread-title", "model-with-reasoning"]
+status_line = ["project-name", "git-branch", "context-used", "model-with-reasoning"]
 status_line_use_colors = true
 
 [tui.model_availability_nux]

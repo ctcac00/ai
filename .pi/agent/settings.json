@@ -19,7 +19,8 @@
     "npm:pi-image-subagent",
     "npm:pi-web-extension",
     "npm:pi-fast-subagent",
-    "npm:pi-lsp"
+    "npm:pi-lsp",
+    "npm:@juicesharp/rpiv-todo"
   ],
   "theme": "nightowl",
   "pi-memory-md": {

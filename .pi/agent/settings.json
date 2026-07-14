@@ -14,7 +14,7 @@
     "npm:pi-btw",
     "npm:@marckrenn/pi-sub-core",
     "npm:pi-sessions",
-    "npm:pi-notify",
+    "npm:@arvoretech/pi-turn-notification",
     "npm:pi-image-subagent",
     "npm:pi-web-extension",
     "npm:pi-fast-subagent",

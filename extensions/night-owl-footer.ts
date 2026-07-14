@@ -3,11 +3,10 @@
  *
  * Custom footer styled with Night Owl colors.
  *
- * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · ▓▓░░ 45% · $cost
+ * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · ▓▓░░ 45%
  * RIGHT: ○ <model> · <thinking>
  */
 
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -189,14 +188,7 @@ export default function (pi: ExtensionAPI) {
         invalidate() {},
 
         render(width: number): string[] {
-          // ── Session cost ──
-          let totalCost = 0;
-          for (const e of ctx.sessionManager.getBranch()) {
-            if (e.type === "message" && e.message.role === "assistant") {
-              const m = e.message as AssistantMessage;
-              totalCost += m.usage.cost?.total ?? 0;
-            }
-          }
+
 
           // ── Context usage ──
           const usage = ctx.getContextUsage();
@@ -206,8 +198,7 @@ export default function (pi: ExtensionAPI) {
           const repoDir = ctx.cwd.split("/").pop() ?? ctx.cwd;
           const left    = cyan(repoDir)
             + SEP + gitStatusStr(branch, gitStatus)
-            + SEP + contextBar(usage?.percent)
-            + SEP + fmtCost(totalCost);
+            + SEP + contextBar(usage?.percent);
 
           // ── RIGHT: ○ model · thinking ──
           const modelStr = ctx.model?.id ? blue(`○ ${ctx.model.id}`) : dim("○ no model");

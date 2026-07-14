@@ -7,7 +7,6 @@
     "git:github.com/ctcac00/ai",
     "git:github.com/josephkern/pi-memory",
     "npm:@jqwn/pi-ask-user-question",
-    "npm:@jqwn/pi-ask-user-question",
     "npm:pi-mcp-adapter",
     "npm:pi-add-dir",
     "npm:pi-prompt-template-model",
@@ -20,6 +19,7 @@
     "npm:pi-image-subagent",
     "npm:pi-web-extension",
     "npm:pi-fast-subagent",
+    "npm:pi-langfuse",
     "npm:pi-lsp",
     "npm:@juicesharp/rpiv-todo"
   ],

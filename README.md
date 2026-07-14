@@ -64,7 +64,7 @@ Not vendored — assumed present:
   - **claude-code**: `claude plugin marketplace add langfuse/Claude-Observability-Plugin && claude plugin install langfuse/Claude-Observability-Plugin`
   - **codex** (Node 22+, Codex 0.128+): `codex plugin marketplace add langfuse/codex-observability-plugin`, then in `~/.codex/config.toml`: `[features] plugin_hooks = true` + `[plugins."tracing@codex-observability-plugin"] enabled = true`
   - **opencode**: `{ "experimental": { "openTelemetry": true }, "plugin": ["@langfuse/opencode-observability-plugin@latest"] }`
-  - **pi / oh-my-pi**: `pi extension add pi-langfuse`
+  - **pi / oh-my-pi**: `pi install npm:pi-langfuse` (the [`pi-langfuse`](https://www.npmjs.com/package/pi-langfuse) extension; configure with `/langfuse-setup` or the `LANGFUSE_*` env vars below)
 - **rtk** — [rust-token-killer](https://github.com/rtk-ai/rtk); called by the PreToolUse hook.
 - **caveman** — [terse-communication skill](https://github.com/JuliusBrussee/caveman).
 

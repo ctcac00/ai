@@ -4,9 +4,9 @@
   "defaultModel": "glm-5.2",
   "defaultThinkingLevel": "medium",
   "packages": [
+    "git:github.com/josephkern/pi-memory",
     "npm:@jqwn/pi-ask-user-question",
     "npm:pi-mcp-adapter",
-    "git:github.com/VandeeFeng/pi-memory-md",
     "npm:pi-add-dir",
     "npm:pi-prompt-template-model",
     "npm:@tmustier/pi-usage-extension",
@@ -21,12 +21,5 @@
     "npm:pi-lsp",
     "npm:@juicesharp/rpiv-todo"
   ],
-  "theme": "nightowl",
-  "pi-memory-md": {
-    "memoryDir": {
-      "repoUrl": "git@github.com:<your-username>/memory",
-      "localPath": "~/.pi/memory-md",
-      "globalMemory": "global"
-    }
-  }
+  "theme": "nightowl"
 }

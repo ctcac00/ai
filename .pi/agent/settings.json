@@ -4,7 +4,7 @@
   "defaultModel": "glm-5.2",
   "defaultThinkingLevel": "medium",
   "packages": [
-    "npm:pi-ask-user",
+    "npm:@jqwn/pi-ask-user-question",
     "npm:pi-mcp-adapter",
     "git:github.com/VandeeFeng/pi-memory-md",
     "npm:pi-add-dir",
@@ -15,7 +15,6 @@
     "npm:@marckrenn/pi-sub-core",
     "npm:pi-sessions",
     "npm:pi-notify",
-    "npm:pi-rewind",
     "npm:pi-image-subagent",
     "npm:pi-web-extension",
     "npm:pi-fast-subagent",

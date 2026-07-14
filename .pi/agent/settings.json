@@ -7,7 +7,6 @@
     "npm:pi-ask-user",
     "npm:pi-mcp-adapter",
     "git:github.com/VandeeFeng/pi-memory-md",
-    "npm:@devkade/pi-plan",
     "npm:pi-add-dir",
     "npm:pi-prompt-template-model",
     "npm:@tmustier/pi-usage-extension",
@@ -23,28 +22,6 @@
     "npm:pi-lsp"
   ],
   "theme": "nightowl",
-  "subagents": {
-    "agentOverrides": {
-      "context-builder": {
-        "model": ""
-      },
-      "planner": {
-        "model": ""
-      },
-      "researcher": {
-        "model": ""
-      },
-      "reviewer": {
-        "model": ""
-      },
-      "scout": {
-        "model": ""
-      },
-      "worker": {
-        "model": ""
-      }
-    }
-  },
   "pi-memory-md": {
     "memoryDir": {
       "repoUrl": "git@github.com:<your-username>/memory",

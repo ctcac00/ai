@@ -4,7 +4,9 @@
   "defaultModel": "glm-5.2",
   "defaultThinkingLevel": "medium",
   "packages": [
+    "git:github.com/ctcac00/ai",
     "git:github.com/josephkern/pi-memory",
+    "npm:@jqwn/pi-ask-user-question",
     "npm:@jqwn/pi-ask-user-question",
     "npm:pi-mcp-adapter",
     "npm:pi-add-dir",

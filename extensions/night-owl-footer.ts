@@ -37,17 +37,22 @@ const purple = (t: string) => ansi(NO_PURPLE, t);
 const SEP = dim(" · ");
 
 // ── Thinking level ───────────────────────────────────────────────────────────
-type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+// Render the raw pi level string verbatim (off/minimal/low/medium/high/xhigh/max
+// and anything pi adds later). Each known level gets a Night-Owl color; unknown
+// levels fall back to dim so the footer never prints `undefined`.
+const THINKING_COLORS: Record<string, (t: string) => string> = {
+  off:     dim,
+  minimal: dim,
+  low:     blue,
+  medium:  yellow,
+  high:    purple,
+  xhigh:   cyan,
+  max:     red,
+};
 
-function thinkingLabel(level: ThinkingLevel): string {
-  switch (level) {
-    case "off":     return dim("off");
-    case "minimal": return dim("minimal");
-    case "low":     return blue("low");
-    case "medium":  return yellow("medium");
-    case "high":    return purple("high");
-    case "xhigh":   return cyan("max");
-  }
+function thinkingLabel(level: string): string {
+  const color = THINKING_COLORS[level] ?? dim;
+  return color(level);
 }
 
 // ── Git status ───────────────────────────────────────────────────────────────
@@ -144,7 +149,7 @@ function contextBar(percent: number | null | undefined): string {
 
 // ── Extension ────────────────────────────────────────────────────────────────
 export default function (pi: ExtensionAPI) {
-  let thinkingLevel: ThinkingLevel = "off";
+  let thinkingLevel: string = "off";
   let gitStatus: GitStatus = { ...EMPTY_STATUS };
   // requestRender handle — set once footer is registered
   let requestRender: (() => void) | null = null;
@@ -152,7 +157,7 @@ export default function (pi: ExtensionAPI) {
   // ── Event handlers (registered once at load) ─────────────────────────────
 
   pi.on("thinking_level_select", (event) => {
-    thinkingLevel = event.level as ThinkingLevel;
+    thinkingLevel = event.level as string;
     requestRender?.();
   });
 
@@ -164,7 +169,7 @@ export default function (pi: ExtensionAPI) {
   // ── Session start: init state + register footer ───────────────────────────
 
   pi.on("session_start", async (_event, ctx) => {
-    thinkingLevel = (pi.getThinkingLevel() ?? "off") as ThinkingLevel;
+    thinkingLevel = (pi.getThinkingLevel() ?? "off") as string;
 
     // Initial git status
     gitStatus = await fetchGitStatus(ctx.cwd, pi);

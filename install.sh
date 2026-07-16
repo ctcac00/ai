@@ -365,10 +365,10 @@ install_plugin() {
 		plan "claude plugin install ${name}@${name}"
 		return 0
 	fi
-	claude plugin marketplace add "$repo" >/dev/null 2>&1 &&
+	claude plugin marketplace add "$repo" </dev/null &&
 		ok "$label marketplace source added" ||
 		warn "claude plugin marketplace add $repo returned non-zero (may already exist)"
-	claude plugin install "${name}@${name}" >/dev/null 2>&1 &&
+	claude plugin install "${name}@${name}" </dev/null &&
 		ok "$label plugin installed" ||
 		warn "run manually: claude plugin install ${name}@${name}"
 }
@@ -384,7 +384,7 @@ install_codex_plugin() {
 		plan "codex plugin marketplace add $repo"
 		return 0
 	fi
-	codex plugin marketplace add "$repo" >/dev/null 2>&1 &&
+	codex plugin marketplace add "$repo" </dev/null &&
 		ok "$label marketplace source added" ||
 		warn "codex plugin marketplace add $repo returned non-zero (may already exist)"
 }
@@ -400,7 +400,7 @@ install_marketplace_only() {
 		plan "claude plugin marketplace add $repo"
 		return 0
 	fi
-	claude plugin marketplace add "$repo" >/dev/null 2>&1 &&
+	claude plugin marketplace add "$repo" </dev/null &&
 		ok "$label marketplace source added" ||
 		warn "claude plugin marketplace add $repo returned non-zero (may already exist)"
 }
@@ -467,10 +467,10 @@ if [ "$SELF_CLAUDE" -eq 1 ]; then
 		plan "claude plugin marketplace add ctcac00/ai"
 		plan "claude plugin install agentic-workflow"
 	else
-		claude plugin marketplace add "ctcac00/ai" >/dev/null 2>&1 &&
+		claude plugin marketplace add "ctcac00/ai" </dev/null &&
 			ok "agentic-workflow marketplace source added" ||
 			warn "claude plugin marketplace add ctcac00/ai returned non-zero (may already exist)"
-		claude plugin install "agentic-workflow" >/dev/null 2>&1 &&
+		claude plugin install "agentic-workflow" </dev/null &&
 			ok "agentic-workflow plugin installed" ||
 			warn "run manually: claude plugin install agentic-workflow"
 	fi

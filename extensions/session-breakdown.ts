@@ -41,6 +41,72 @@ type DowKey = string; // "Mon", "Tue", etc.
 type TodKey = string; // "after-midnight", "morning", "afternoon", "evening", "night"
 type BreakdownView = "model" | "cwd" | "dow" | "tod";
 
+/**
+ * Per-message token breakdown, parsed from session `usage` objects.
+ * All five components are tracked independently so we can derive cache
+ * health metrics (hit rate, leverage) alongside fresh/billed work.
+ *
+ *   prompt      = cacheRead + input + cacheWrite   (everything read into prompt)
+ *   fresh prompt = input + cacheWrite              (billed input; cacheRead is the hit)
+ *   fresh work  = input + output + cacheWrite      (billed tokens, cache hits excluded)
+ *   cacheHitRate = cacheRead / prompt               (fraction served from cache)
+ *   cacheLeverage = prompt / fresh prompt           (cache saved re-sending ~N×)
+ */
+interface TokenBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  reasoning: number;
+}
+
+const ZERO_TB: TokenBreakdown = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  reasoning: 0,
+};
+
+function addTb(into: TokenBreakdown, from: TokenBreakdown): void {
+  into.input += from.input;
+  into.output += from.output;
+  into.cacheRead += from.cacheRead;
+  into.cacheWrite += from.cacheWrite;
+  into.reasoning += from.reasoning;
+}
+
+function tbTotal(tb: TokenBreakdown): number {
+  return tb.input + tb.output + tb.cacheRead + tb.cacheWrite + tb.reasoning;
+}
+
+/** Everything the model read from the prompt, from cache or fresh. */
+function tbPrompt(tb: TokenBreakdown): number {
+  return tb.cacheRead + tb.input + tb.cacheWrite;
+}
+
+/** Billed input tokens: fresh input + cache writes (cache hits excluded). */
+function tbFreshPrompt(tb: TokenBreakdown): number {
+  return tb.input + tb.cacheWrite;
+}
+
+/** Billed tokens overall: fresh input + output + cache writes. */
+function tbFresh(tb: TokenBreakdown): number {
+  return tb.input + tb.output + tb.cacheWrite;
+}
+
+/** Fraction of prompt served from cache, 0..1. 0 when no prompt tokens. */
+function cacheHitRate(tb: TokenBreakdown): number {
+  const p = tbPrompt(tb);
+  return p > 0 ? tb.cacheRead / p : 0;
+}
+
+/** How many × the cache avoided re-sending the prompt, ≥1, or 0 when no fresh prompt. */
+function cacheLeverage(tb: TokenBreakdown): number {
+  const fp = tbFreshPrompt(tb);
+  return fp > 0 ? tbPrompt(tb) / fp : 0;
+}
+
 const DOW_NAMES: DowKey[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const TOD_BUCKETS: { key: TodKey; label: string; from: number; to: number }[] =
@@ -71,12 +137,15 @@ interface ParsedSession {
   dow: DowKey;
   tod: TodKey;
   modelsUsed: Set<ModelKey>;
+  primaryModel: ModelKey; // model with most tokens in the session (for top-sessions list)
   messages: number;
   tokens: number;
   totalCost: number;
+  tb: TokenBreakdown; // per-component breakdown (cache health)
   costByModel: Map<ModelKey, number>;
   messagesByModel: Map<ModelKey, number>;
   tokensByModel: Map<ModelKey, number>;
+  tbByModel: Map<ModelKey, TokenBreakdown>;
 }
 
 interface DayAgg {
@@ -86,17 +155,21 @@ interface DayAgg {
   messages: number;
   tokens: number;
   totalCost: number;
+  tb: TokenBreakdown; // per-component breakdown (cache health)
   costByModel: Map<ModelKey, number>;
   sessionsByModel: Map<ModelKey, number>;
   messagesByModel: Map<ModelKey, number>;
   tokensByModel: Map<ModelKey, number>;
+  tbByModel: Map<ModelKey, TokenBreakdown>;
   sessionsByCwd: Map<CwdKey, number>;
   messagesByCwd: Map<CwdKey, number>;
   tokensByCwd: Map<CwdKey, number>;
+  tbByCwd: Map<CwdKey, TokenBreakdown>;
   costByCwd: Map<CwdKey, number>;
   sessionsByTod: Map<TodKey, number>;
   messagesByTod: Map<TodKey, number>;
   tokensByTod: Map<TodKey, number>;
+  tbByTod: Map<TodKey, TokenBreakdown>;
   costByTod: Map<TodKey, number>;
 }
 
@@ -107,22 +180,27 @@ interface RangeAgg {
   totalMessages: number;
   totalTokens: number;
   totalCost: number;
+  tb: TokenBreakdown; // per-component breakdown across the whole range
   modelCost: Map<ModelKey, number>;
   modelSessions: Map<ModelKey, number>; // number of sessions where model was used
   modelMessages: Map<ModelKey, number>;
   modelTokens: Map<ModelKey, number>;
+  modelTb: Map<ModelKey, TokenBreakdown>;
   cwdCost: Map<CwdKey, number>;
   cwdSessions: Map<CwdKey, number>;
   cwdMessages: Map<CwdKey, number>;
   cwdTokens: Map<CwdKey, number>;
+  cwdTb: Map<CwdKey, TokenBreakdown>;
   dowCost: Map<DowKey, number>;
   dowSessions: Map<DowKey, number>;
   dowMessages: Map<DowKey, number>;
   dowTokens: Map<DowKey, number>;
+  dowTb: Map<DowKey, TokenBreakdown>;
   todCost: Map<TodKey, number>;
   todSessions: Map<TodKey, number>;
   todMessages: Map<TodKey, number>;
   todTokens: Map<TodKey, number>;
+  todTb: Map<TodKey, TokenBreakdown>;
 }
 
 interface RGB {
@@ -131,9 +209,32 @@ interface RGB {
   b: number;
 }
 
+/** Lightweight totals for a time window — used for previous-period deltas. */
+interface PeriodTotals {
+  sessions: number;
+  messages: number;
+  tokens: number;
+  tb: TokenBreakdown;
+  cost: number;
+}
+
+/** Lightweight per-session record retained for the top-sessions list. */
+interface SessionSummary {
+  startedAt: Date;
+  dayKeyLocal: string;
+  cwd: CwdKey | null;
+  primaryModel: ModelKey;
+  messages: number;
+  tokens: number;
+  tb: TokenBreakdown;
+  cost: number;
+}
+
 interface BreakdownData {
   generatedAt: Date;
   ranges: Map<number, RangeAgg>;
+  prevTotals: Map<number, PeriodTotals>; // immediately-preceding window per range
+  allSessions: SessionSummary[]; // every parsed session (for top-sessions list)
   palette: {
     modelColors: Map<ModelKey, RGB>;
     otherColor: RGB;
@@ -256,6 +357,60 @@ function formatUsd(cost: number): string {
   if (cost >= 1) return `$${cost.toFixed(2)}`;
   if (cost >= 0.1) return `$${cost.toFixed(3)}`;
   return `$${cost.toFixed(4)}`;
+}
+
+/** Format a 0..1 fraction as an integer percent, e.g. 0.863 -> "86%". */
+function formatPct(frac: number): string {
+  if (!Number.isFinite(frac) || frac <= 0) return "0%";
+  if (frac >= 1) return "100%";
+  return `${Math.round(frac * 100)}%`;
+}
+
+/** Format a leverage multiple, e.g. 7.3 -> "7.3×"; 0 -> "—". */
+function formatLeverage(x: number): string {
+  if (!Number.isFinite(x) || x <= 0) return "—";
+  if (x >= 100) return `${Math.round(x)}×`;
+  if (x >= 10) return `${x.toFixed(0)}×`;
+  return `${x.toFixed(1)}×`;
+}
+
+/** Cache hit-rate cell: "86%" when prompt tokens exist, "—" otherwise. */
+function hitCell(tb: TokenBreakdown): string {
+  const p = tbPrompt(tb);
+  return p > 0 ? formatPct(cacheHitRate(tb)) : "—";
+}
+
+/** Render a horizontal bar for a 0..1 fraction, width cells wide (filled/empty blocks). */
+function fracBar(frac: number, width: number, fillRgb?: RGB): string {
+  if (width <= 0) return "";
+  const f = Math.max(0, Math.min(1, frac));
+  let filled = f > 0 ? Math.max(1, Math.round(f * width)) : 0;
+  filled = Math.min(width, filled);
+  const empty = width - filled;
+  const filledStr =
+    filled > 0
+      ? fillRgb
+        ? ansiFg(fillRgb, "█".repeat(filled))
+        : "█".repeat(filled)
+      : "";
+  const emptyStr = empty > 0 ? ansiFg(EMPTY_CELL_BG, "█".repeat(empty)) : "";
+  return filledStr + emptyStr;
+}
+
+/** Format a signed percent delta, e.g. 0.12 -> "+12%", -0.05 -> "-5%". */
+function formatDeltaPct(frac: number): string {
+  if (!Number.isFinite(frac)) return "—";
+  const pct = Math.round(frac * 100);
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct}%`;
+}
+
+/** Format a signed percentage-point delta, e.g. (-0.06) -> "-6pts". */
+function formatDeltaPts(frac: number): string {
+  if (!Number.isFinite(frac)) return "—";
+  const pts = Math.round(frac * 100);
+  const sign = pts > 0 ? "+" : "";
+  return `${sign}${pts}pts`;
 }
 
 /**
@@ -438,6 +593,34 @@ function extractTokensTotal(usage: any): number {
   return sum > 0 ? sum : 0;
 }
 
+/**
+ * Extract the per-component token breakdown from a usage object.
+ *
+ * Pi's canonical shape (Anthropic / OpenAI / Google):
+ *   { input, output, cacheRead, cacheWrite, reasoning, totalTokens }
+ * We also accept snake_case and camelCase variants for robustness. Fields that
+ * are absent default to 0; cache-health metrics gracefully degrade to "none"
+ * when cacheRead / input are unavailable.
+ */
+function extractTokenBreakdown(usage: any): TokenBreakdown {
+  if (!usage) return { ...ZERO_TB };
+  const readNum = (v: any): number => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    if (typeof v === "string") {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+  return {
+    input: readNum(usage?.input) || readNum(usage?.inputTokens) || readNum(usage?.input_tokens),
+    output: readNum(usage?.output) || readNum(usage?.outputTokens) || readNum(usage?.output_tokens),
+    cacheRead: readNum(usage?.cacheRead) || readNum(usage?.cache_read) || readNum(usage?.cacheReadInputTokens) || readNum(usage?.cached_input_tokens),
+    cacheWrite: readNum(usage?.cacheWrite) || readNum(usage?.cache_write) || readNum(usage?.cacheCreationInputTokens) || readNum(usage?.cache_creation_input_tokens),
+    reasoning: readNum(usage?.reasoning) || readNum(usage?.reasoningTokens) || readNum(usage?.reasoning_tokens),
+  };
+}
+
 async function walkSessionFiles(
   root: string,
   startCutoffLocal: Date,
@@ -507,6 +690,8 @@ async function parseSessionFile(
   const costByModel = new Map<ModelKey, number>();
   const messagesByModel = new Map<ModelKey, number>();
   const tokensByModel = new Map<ModelKey, number>();
+  const tb: TokenBreakdown = { ...ZERO_TB };
+  const tbByModel = new Map<ModelKey, TokenBreakdown>();
 
   const stream = createReadStream(filePath, { encoding: "utf8" });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -566,6 +751,13 @@ async function parseSessionFile(
         tokensByModel.set(mk, (tokensByModel.get(mk) ?? 0) + tok);
       }
 
+      // Per-component token breakdown (cache health).
+      const mtb = extractTokenBreakdown(usage);
+      addTb(tb, mtb);
+      const acc = tbByModel.get(mk) ?? { ...ZERO_TB };
+      addTb(acc, mtb);
+      tbByModel.set(mk, acc);
+
       const cost = extractCostTotal(usage);
       if (cost > 0) {
         totalCost += cost;
@@ -581,6 +773,15 @@ async function parseSessionFile(
   const dayKeyLocal = toLocalDayKey(startedAt);
   const dow = DOW_NAMES[mondayIndex(startedAt)];
   const tod = todBucketForHour(startedAt.getHours());
+  // Primary model = model with the most tokens in this session (for top-sessions list).
+  let primaryModel: ModelKey = "unknown";
+  let primaryTokens = -1;
+  for (const [mk, n] of tokensByModel.entries()) {
+    if (n > primaryTokens) {
+      primaryTokens = n;
+      primaryModel = mk;
+    }
+  }
   return {
     filePath,
     startedAt,
@@ -589,12 +790,15 @@ async function parseSessionFile(
     dow,
     tod,
     modelsUsed,
+    primaryModel,
     messages,
     tokens,
     totalCost,
+    tb,
     costByModel,
     messagesByModel,
     tokensByModel,
+    tbByModel,
   };
 }
 
@@ -614,17 +818,21 @@ function buildRangeAgg(days: number, now: Date): RangeAgg {
       messages: 0,
       tokens: 0,
       totalCost: 0,
+      tb: { ...ZERO_TB },
       costByModel: new Map(),
       sessionsByModel: new Map(),
       messagesByModel: new Map(),
       tokensByModel: new Map(),
+      tbByModel: new Map(),
       sessionsByCwd: new Map(),
       messagesByCwd: new Map(),
       tokensByCwd: new Map(),
+      tbByCwd: new Map(),
       costByCwd: new Map(),
       sessionsByTod: new Map(),
       messagesByTod: new Map(),
       tokensByTod: new Map(),
+      tbByTod: new Map(),
       costByTod: new Map(),
     };
     outDays.push(day);
@@ -638,22 +846,27 @@ function buildRangeAgg(days: number, now: Date): RangeAgg {
     totalMessages: 0,
     totalTokens: 0,
     totalCost: 0,
+    tb: { ...ZERO_TB },
     modelCost: new Map(),
     modelSessions: new Map(),
     modelMessages: new Map(),
     modelTokens: new Map(),
+    modelTb: new Map(),
     cwdCost: new Map(),
     cwdSessions: new Map(),
     cwdMessages: new Map(),
     cwdTokens: new Map(),
+    cwdTb: new Map(),
     dowCost: new Map(),
     dowSessions: new Map(),
     dowMessages: new Map(),
     dowTokens: new Map(),
+    dowTb: new Map(),
     todCost: new Map(),
     todSessions: new Map(),
     todMessages: new Map(),
     todTokens: new Map(),
+    todTb: new Map(),
   };
 }
 
@@ -665,10 +878,12 @@ function addSessionToRange(range: RangeAgg, session: ParsedSession): void {
   range.totalMessages += session.messages;
   range.totalTokens += session.tokens;
   range.totalCost += session.totalCost;
+  addTb(range.tb, session.tb);
   day.sessions += 1;
   day.messages += session.messages;
   day.tokens += session.tokens;
   day.totalCost += session.totalCost;
+  addTb(day.tb, session.tb);
 
   // Sessions-per-model (presence)
   for (const mk of session.modelsUsed) {
@@ -687,6 +902,10 @@ function addSessionToRange(range: RangeAgg, session: ParsedSession): void {
     day.tokensByModel.set(mk, (day.tokensByModel.get(mk) ?? 0) + n);
     range.modelTokens.set(mk, (range.modelTokens.get(mk) ?? 0) + n);
   }
+
+  // Per-component token breakdown per model
+  mergeTbMaps(day.tbByModel, session.tbByModel);
+  mergeTbMaps(range.modelTb, session.tbByModel);
 
   // Cost-per-model
   for (const [mk, cost] of session.costByModel.entries()) {
@@ -709,6 +928,8 @@ function addSessionToRange(range: RangeAgg, session: ParsedSession): void {
     );
     day.tokensByCwd.set(cwd, (day.tokensByCwd.get(cwd) ?? 0) + session.tokens);
     range.cwdTokens.set(cwd, (range.cwdTokens.get(cwd) ?? 0) + session.tokens);
+    addSessionTbToKey(day.tbByCwd, cwd, session.tb);
+    addSessionTbToKey(range.cwdTb, cwd, session.tb);
     day.costByCwd.set(cwd, (day.costByCwd.get(cwd) ?? 0) + session.totalCost);
     range.cwdCost.set(cwd, (range.cwdCost.get(cwd) ?? 0) + session.totalCost);
   }
@@ -721,6 +942,7 @@ function addSessionToRange(range: RangeAgg, session: ParsedSession): void {
     (range.dowMessages.get(dow) ?? 0) + session.messages,
   );
   range.dowTokens.set(dow, (range.dowTokens.get(dow) ?? 0) + session.tokens);
+  addSessionTbToKey(range.dowTb, dow, session.tb);
   range.dowCost.set(dow, (range.dowCost.get(dow) ?? 0) + session.totalCost);
 
   // Time-of-day aggregation
@@ -731,6 +953,7 @@ function addSessionToRange(range: RangeAgg, session: ParsedSession): void {
     (day.messagesByTod.get(tod) ?? 0) + session.messages,
   );
   day.tokensByTod.set(tod, (day.tokensByTod.get(tod) ?? 0) + session.tokens);
+  addSessionTbToKey(day.tbByTod, tod, session.tb);
   day.costByTod.set(tod, (day.costByTod.get(tod) ?? 0) + session.totalCost);
   range.todSessions.set(tod, (range.todSessions.get(tod) ?? 0) + 1);
   range.todMessages.set(
@@ -738,6 +961,7 @@ function addSessionToRange(range: RangeAgg, session: ParsedSession): void {
     (range.todMessages.get(tod) ?? 0) + session.messages,
   );
   range.todTokens.set(tod, (range.todTokens.get(tod) ?? 0) + session.tokens);
+  addSessionTbToKey(range.todTb, tod, session.tb);
   range.todCost.set(tod, (range.todCost.get(tod) ?? 0) + session.totalCost);
 }
 
@@ -747,6 +971,29 @@ function sortMapByValueDesc<K extends string>(
   return [...m.entries()]
     .map(([key, value]) => ({ key, value }))
     .sort((a, b) => b.value - a.value);
+}
+
+/** Merge a per-key token breakdown from `src` into `dst` (creating entries as needed). */
+function mergeTbMaps<K extends string>(
+  dst: Map<K, TokenBreakdown>,
+  src: Map<K, TokenBreakdown>,
+): void {
+  for (const [k, tb] of src.entries()) {
+    const acc = dst.get(k) ?? { ...ZERO_TB };
+    addTb(acc, tb);
+    dst.set(k, acc);
+  }
+}
+
+/** Accumulate a whole-session token breakdown into a per-key map (scales session total by key). */
+function addSessionTbToKey<K extends string>(
+  dst: Map<K, TokenBreakdown>,
+  key: K,
+  sessionTb: TokenBreakdown,
+): void {
+  const acc = dst.get(key) ?? { ...ZERO_TB };
+  addTb(acc, sessionTb);
+  dst.set(key, acc);
 }
 
 function choosePaletteFromLast30Days(
@@ -1094,12 +1341,71 @@ function renderLegendBlock(
   return lines;
 }
 
+// Fixed widths for the token-detail / cost / share trailing columns.
+const TOK_IN_W = 7;
+const TOK_OUT_W = 6;
+const TOK_CACHE_W = 9; // cacheRead magnitude
+const TOK_HIT_W = 5;
+const COST_W = 10;
+const SHARE_W = 6;
+
+/** Trailing column header text (in/out/cache/hit/cost/share) per visibility. */
+function trailingHeader(
+  showDetail: boolean,
+  showHit: boolean,
+): string {
+  const parts: string[] = [];
+  if (showDetail) {
+    parts.push(padLeft("in", TOK_IN_W));
+    parts.push(padLeft("out", TOK_OUT_W));
+    parts.push(padLeft("cache", TOK_CACHE_W));
+  }
+  if (showHit) parts.push(padLeft("hit%", TOK_HIT_W));
+  parts.push(padLeft("cost", COST_W));
+  parts.push(padLeft("share", SHARE_W));
+  return parts.map((p) => "  " + p).join("");
+}
+
+/** Trailing dashes matching {@link trailingHeader}. */
+function trailingSep(showDetail: boolean, showHit: boolean): string {
+  const parts: string[] = [];
+  if (showDetail) {
+    parts.push("-".repeat(TOK_IN_W));
+    parts.push("-".repeat(TOK_OUT_W));
+    parts.push("-".repeat(TOK_CACHE_W));
+  }
+  if (showHit) parts.push("-".repeat(TOK_HIT_W));
+  parts.push("-".repeat(COST_W));
+  parts.push("-".repeat(SHARE_W));
+  return parts.map((p) => "  " + p).join("");
+}
+
+/** Trailing cells for one row given its token breakdown, cost, and share string. */
+function trailingRow(
+  tb: TokenBreakdown,
+  cost: number,
+  shareStr: string,
+  showDetail: boolean,
+  showHit: boolean,
+): string {
+  const parts: string[] = [];
+  if (showDetail) {
+    parts.push(padLeft(formatCount(tb.input + tb.cacheWrite), TOK_IN_W));
+    parts.push(padLeft(formatCount(tb.output), TOK_OUT_W));
+    parts.push(padLeft(formatCount(tb.cacheRead), TOK_CACHE_W));
+  }
+  if (showHit) parts.push(padLeft(hitCell(tb), TOK_HIT_W));
+  parts.push(padLeft(formatUsd(cost), COST_W));
+  parts.push(padLeft(shareStr, SHARE_W));
+  return parts.map((p) => "  " + p).join("");
+}
+
 function renderModelTable(
   range: RangeAgg,
   mode: MeasurementMode,
   maxRows = 8,
+  width = 120,
 ): string[] {
-  // Keep this relatively narrow: model + selected metric + cost + share.
   const metric = graphMetricForRange(range, mode);
   const kind = metric.kind;
 
@@ -1127,20 +1433,32 @@ function renderModelTable(
     Math.max("model".length, ...rows.map((r) => r.key.length)),
   );
 
+  const hasTokens = tbTotal(range.tb) > 0;
+  const baseW = modelWidth + 2 + valueWidth;
+  const showHit = hasTokens && width >= baseW + 2 + TOK_HIT_W + 2 + COST_W + 2 + SHARE_W;
+  const showDetail =
+    kind === "tokens" &&
+    hasTokens &&
+    width >= baseW + 2 + TOK_IN_W + 2 + TOK_OUT_W + 2 + TOK_CACHE_W + 2 + TOK_HIT_W + 2 + COST_W + 2 + SHARE_W;
+
   const lines: string[] = [];
   lines.push(
-    `${padRight("model", modelWidth)}  ${padLeft(label, valueWidth)}  ${padLeft("cost", 10)}  ${padLeft("share", 6)}`,
+    `${padRight("model", modelWidth)}  ${padLeft(label, valueWidth)}` +
+      trailingHeader(showDetail, showHit),
   );
   lines.push(
-    `${"-".repeat(modelWidth)}  ${"-".repeat(valueWidth)}  ${"-".repeat(10)}  ${"-".repeat(6)}`,
+    `${"-".repeat(modelWidth)}  ${"-".repeat(valueWidth)}` +
+      trailingSep(showDetail, showHit),
   );
 
   for (const r of rows) {
     const value = perModel.get(r.key) ?? 0;
     const cost = range.modelCost.get(r.key) ?? 0;
+    const tb = range.modelTb.get(r.key) ?? ZERO_TB;
     const share = total > 0 ? `${Math.round((value / total) * 100)}%` : "0%";
     lines.push(
-      `${padRight(r.key.slice(0, modelWidth), modelWidth)}  ${padLeft(formatCount(value), valueWidth)}  ${padLeft(formatUsd(cost), 10)}  ${padLeft(share, 6)}`,
+      `${padRight(r.key.slice(0, modelWidth), modelWidth)}  ${padLeft(formatCount(value), valueWidth)}` +
+        trailingRow(tb, cost, share, showDetail, showHit),
     );
   }
 
@@ -1155,6 +1473,7 @@ function renderCwdTable(
   range: RangeAgg,
   mode: MeasurementMode,
   maxRows = 8,
+  width = 120,
 ): string[] {
   const metric = graphMetricForRange(range, mode);
   const kind = metric.kind;
@@ -1184,21 +1503,33 @@ function renderCwdTable(
     Math.max("directory".length, ...displayPaths.map((p) => p.length)),
   );
 
+  const hasTokens = tbTotal(range.tb) > 0;
+  const baseW = cwdWidth + 2 + valueWidth;
+  const showHit = hasTokens && width >= baseW + 2 + TOK_HIT_W + 2 + COST_W + 2 + SHARE_W;
+  const showDetail =
+    kind === "tokens" &&
+    hasTokens &&
+    width >= baseW + 2 + TOK_IN_W + 2 + TOK_OUT_W + 2 + TOK_CACHE_W + 2 + TOK_HIT_W + 2 + COST_W + 2 + SHARE_W;
+
   const lines: string[] = [];
   lines.push(
-    `${padRight("directory", cwdWidth)}  ${padLeft(label, valueWidth)}  ${padLeft("cost", 10)}  ${padLeft("share", 6)}`,
+    `${padRight("directory", cwdWidth)}  ${padLeft(label, valueWidth)}` +
+      trailingHeader(showDetail, showHit),
   );
   lines.push(
-    `${"-".repeat(cwdWidth)}  ${"-".repeat(valueWidth)}  ${"-".repeat(10)}  ${"-".repeat(6)}`,
+    `${"-".repeat(cwdWidth)}  ${"-".repeat(valueWidth)}` +
+      trailingSep(showDetail, showHit),
   );
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const value = perCwd.get(r.key) ?? 0;
     const cost = range.cwdCost.get(r.key) ?? 0;
+    const tb = range.cwdTb.get(r.key) ?? ZERO_TB;
     const share = total > 0 ? `${Math.round((value / total) * 100)}%` : "0%";
     lines.push(
-      `${padRight(displayPaths[i].slice(0, cwdWidth), cwdWidth)}  ${padLeft(formatCount(value), valueWidth)}  ${padLeft(formatUsd(cost), 10)}  ${padLeft(share, 6)}`,
+      `${padRight(displayPaths[i].slice(0, cwdWidth), cwdWidth)}  ${padLeft(formatCount(value), valueWidth)}` +
+        trailingRow(tb, cost, share, showDetail, showHit),
     );
   }
 
@@ -1267,33 +1598,49 @@ function renderDowDistributionLines(
   return lines;
 }
 
-function renderDowTable(range: RangeAgg, mode: MeasurementMode): string[] {
+function renderDowTable(
+  range: RangeAgg,
+  mode: MeasurementMode,
+  width = 120,
+): string[] {
   const { kind, perDow, total } = dowMetricForRange(range, mode);
   const valueWidth = kind === "tokens" ? 10 : 8;
   const dowWidth = 5; // "day  "
 
+  const hasTokens = tbTotal(range.tb) > 0;
+  const baseW = dowWidth + 2 + valueWidth;
+  const showHit = hasTokens && width >= baseW + 2 + TOK_HIT_W + 2 + COST_W + 2 + SHARE_W;
+
   const lines: string[] = [];
   lines.push(
-    `${padRight("day", dowWidth)}  ${padLeft(kind, valueWidth)}  ${padLeft("cost", 10)}  ${padLeft("share", 6)}`,
+    `${padRight("day", dowWidth)}  ${padLeft(kind, valueWidth)}` +
+      trailingHeader(false, showHit),
   );
   lines.push(
-    `${"-".repeat(dowWidth)}  ${"-".repeat(valueWidth)}  ${"-".repeat(10)}  ${"-".repeat(6)}`,
+    `${"-".repeat(dowWidth)}  ${"-".repeat(valueWidth)}` +
+      trailingSep(false, showHit),
   );
 
   // Always show in Mon–Sun order
   for (const dow of DOW_NAMES) {
     const value = perDow.get(dow) ?? 0;
     const cost = range.dowCost.get(dow) ?? 0;
+    const tb = range.dowTb.get(dow) ?? ZERO_TB;
     const share = total > 0 ? `${Math.round((value / total) * 100)}%` : "0%";
     lines.push(
-      `${padRight(dow, dowWidth)}  ${padLeft(formatCount(value), valueWidth)}  ${padLeft(formatUsd(cost), 10)}  ${padLeft(share, 6)}`,
+      `${padRight(dow, dowWidth)}  ${padLeft(formatCount(value), valueWidth)}` +
+        trailingRow(tb, cost, share, false, showHit),
     );
   }
 
   return lines;
 }
 
-function renderTodTable(range: RangeAgg, mode: MeasurementMode): string[] {
+function renderTodTable(
+  range: RangeAgg,
+  mode: MeasurementMode,
+  width = 120,
+): string[] {
   const metric = graphMetricForRange(range, mode);
   const kind = metric.kind;
 
@@ -1314,21 +1661,29 @@ function renderTodTable(range: RangeAgg, mode: MeasurementMode): string[] {
   const valueWidth = kind === "tokens" ? 10 : 8;
   const todWidth = 22; // widest label
 
+  const hasTokens = tbTotal(range.tb) > 0;
+  const baseW = todWidth + 2 + valueWidth;
+  const showHit = hasTokens && width >= baseW + 2 + TOK_HIT_W + 2 + COST_W + 2 + SHARE_W;
+
   const lines: string[] = [];
   lines.push(
-    `${padRight("time of day", todWidth)}  ${padLeft(kind, valueWidth)}  ${padLeft("cost", 10)}  ${padLeft("share", 6)}`,
+    `${padRight("time of day", todWidth)}  ${padLeft(kind, valueWidth)}` +
+      trailingHeader(false, showHit),
   );
   lines.push(
-    `${"-".repeat(todWidth)}  ${"-".repeat(valueWidth)}  ${"-".repeat(10)}  ${"-".repeat(6)}`,
+    `${"-".repeat(todWidth)}  ${"-".repeat(valueWidth)}` +
+      trailingSep(false, showHit),
   );
 
   // Always show in chronological order
   for (const b of TOD_BUCKETS) {
     const value = perTod.get(b.key) ?? 0;
     const cost = range.todCost.get(b.key) ?? 0;
+    const tb = range.todTb.get(b.key) ?? ZERO_TB;
     const share = total > 0 ? `${Math.round((value / total) * 100)}%` : "0%";
     lines.push(
-      `${padRight(b.label, todWidth)}  ${padLeft(formatCount(value), valueWidth)}  ${padLeft(formatUsd(cost), 10)}  ${padLeft(share, 6)}`,
+      `${padRight(b.label, todWidth)}  ${padLeft(formatCount(value), valueWidth)}` +
+        trailingRow(tb, cost, share, false, showHit),
     );
   }
 
@@ -1362,13 +1717,25 @@ function rangeSummary(
       ? `${formatUsd(range.totalCost)} · avg ${formatUsd(avg)}/session`
       : `$0.0000`;
 
+  // Cache-health segment, shown whenever there are prompt tokens.
+  const cachePart = (() => {
+    const prompt = tbPrompt(range.tb);
+    if (prompt <= 0) return "";
+    const hit = formatPct(cacheHitRate(range.tb));
+    const lev = formatLeverage(cacheLeverage(range.tb));
+    return ` · cache hit ${hit} · leverage ${lev}`;
+  })();
+
   if (mode === "tokens") {
-    return `Last ${days} days: ${formatCount(range.sessions)} sessions · ${formatCount(range.totalTokens)} tokens · ${costPart}`;
+    return (
+      `Last ${days} days: ${formatCount(range.sessions)} sessions · ` +
+      `${formatCount(range.totalTokens)} tokens${cachePart} · ${costPart}`
+    );
   }
   if (mode === "messages") {
     return `Last ${days} days: ${formatCount(range.sessions)} sessions · ${formatCount(range.totalMessages)} messages · ${costPart}`;
   }
-  return `Last ${days} days: ${formatCount(range.sessions)} sessions · ${costPart}`;
+  return `Last ${days} days: ${formatCount(range.sessions)} sessions${cachePart} · ${costPart}`;
 }
 
 async function computeBreakdown(
@@ -1380,6 +1747,9 @@ async function computeBreakdown(
   for (const d of RANGE_DAYS) ranges.set(d, buildRangeAgg(d, now));
   const range90 = ranges.get(90)!;
   const start90 = range90.days[0].date;
+  // Extend the scan window by one full max-range so we can compute the
+  // immediately-preceding period for delta comparisons.
+  const scanStart = addDaysLocal(start90, -90);
 
   onProgress?.({
     phase: "scan",
@@ -1391,7 +1761,7 @@ async function computeBreakdown(
 
   const candidates = await walkSessionFiles(
     SESSION_ROOT,
-    start90,
+    scanStart,
     signal,
     (found) => {
       onProgress?.({ phase: "scan", foundFiles: found });
@@ -1406,6 +1776,27 @@ async function computeBreakdown(
     parsedFiles: 0,
     currentFile: totalFiles > 0 ? path.basename(candidates[0]!) : undefined,
   });
+
+  // Previous-period totals per range: window [start - N, start).
+  const prevTotals = new Map<number, PeriodTotals>();
+  const prevWindows = new Map<number, { start: Date; end: Date }>();
+  for (const d of RANGE_DAYS) {
+    const range = ranges.get(d)!;
+    const curStart = range.days[0].date;
+    prevWindows.set(d, {
+      start: addDaysLocal(curStart, -d),
+      end: addDaysLocal(curStart, -1),
+    });
+    prevTotals.set(d, {
+      sessions: 0,
+      messages: 0,
+      tokens: 0,
+      tb: { ...ZERO_TB },
+      cost: 0,
+    });
+  }
+
+  const allSessions: SessionSummary[] = [];
 
   let parsedFiles = 0;
   for (const filePath of candidates) {
@@ -1426,9 +1817,32 @@ async function computeBreakdown(
       const range = ranges.get(d)!;
       const start = range.days[0].date;
       const end = range.days[range.days.length - 1].date;
-      if (sessionDay < start || sessionDay > end) continue;
-      addSessionToRange(range, session);
+      if (sessionDay >= start && sessionDay <= end) {
+        addSessionToRange(range, session);
+      }
+      // Previous-period accumulation for the same range length.
+      const pw = prevWindows.get(d)!;
+      if (sessionDay >= pw.start && sessionDay <= pw.end) {
+        const pt = prevTotals.get(d)!;
+        pt.sessions += 1;
+        pt.messages += session.messages;
+        pt.tokens += session.tokens;
+        pt.cost += session.totalCost;
+        addTb(pt.tb, session.tb);
+      }
     }
+
+    // Keep a lightweight copy for the top-sessions list (bounded to the scan window).
+    allSessions.push({
+      startedAt: session.startedAt,
+      dayKeyLocal: session.dayKeyLocal,
+      cwd: session.cwd,
+      primaryModel: session.primaryModel,
+      messages: session.messages,
+      tokens: session.tokens,
+      tb: { ...session.tb },
+      cost: session.totalCost,
+    });
   }
 
   onProgress?.({ phase: "finalize", currentFile: undefined });
@@ -1440,11 +1854,272 @@ async function computeBreakdown(
   return {
     generatedAt: now,
     ranges,
+    prevTotals,
+    allSessions,
     palette,
     cwdPalette,
     dowPalette,
     todPalette,
   };
+}
+
+// ── Insights panel helpers ────────────────────────────────────────────────
+
+const INSIGHT_LABEL_W = 20;
+const INSIGHT_BAR_W = 16;
+
+/** Two-column key/value line: "  {label:<20}  {value}". */
+function insightKV(label: string, value: string): string {
+  return `  ${padRight(label, INSIGHT_LABEL_W)}  ${value}`;
+}
+
+/** Section divider line: "── Title ─────..." sized to width. */
+function insightSection(title: string, width: number): string {
+  const prefix = `${bold(title)} `;
+  const used = visibleWidth(prefix);
+  const fill = Math.max(0, Math.min(width, width - used));
+  return prefix + dim("─".repeat(fill));
+}
+
+/** Key with the maximum numeric value in a map (ties → first encountered). */
+function argmaxMap<K extends string>(m: Map<K, number>): K | null {
+  let best: K | null = null;
+  let bestN = -Infinity;
+  for (const [k, v] of m.entries()) {
+    if (v > bestN) {
+      bestN = v;
+      best = k;
+    }
+  }
+  return best;
+}
+
+/** Longest run of consecutive days (in calendar order) with sessions > 0. */
+function longestActiveStreak(range: RangeAgg): number {
+  let best = 0;
+  let cur = 0;
+  for (const d of range.days) {
+    if (d.sessions > 0) {
+      cur += 1;
+      if (cur > best) best = cur;
+    } else {
+      cur = 0;
+    }
+  }
+  return best;
+}
+
+/** Count of distinct sessions whose start is within ±2min of another (parallel launches). */
+function countParallelSessions(sessions: SessionSummary[]): number {
+  if (sessions.length < 2) return 0;
+  const times = sessions
+    .map((s) => s.startedAt.getTime())
+    .sort((a, b) => a - b);
+  const WINDOW_MS = 2 * 60 * 1000;
+  let count = 0;
+  for (let i = 0; i < times.length; i++) {
+    const left = i > 0 && times[i]! - times[i - 1]! <= WINDOW_MS;
+    const right =
+      i < times.length - 1 && times[i + 1]! - times[i]! <= WINDOW_MS;
+    if (left || right) count += 1;
+  }
+  return count;
+}
+
+/** Render the full insights panel for a range. */
+function renderInsights(
+  data: BreakdownData,
+  range: RangeAgg,
+  days: number,
+  width: number,
+): string[] {
+  const lines: string[] = [];
+  const hasTokens = tbTotal(range.tb) > 0;
+  const totalSessions = range.sessions;
+
+  // ── Activity ─────────────────────────────────────────────────────────
+  lines.push(insightSection("Activity", width));
+
+  const busiestDow = argmaxMap(range.dowSessions);
+  if (busiestDow) {
+    const n = range.dowSessions.get(busiestDow) ?? 0;
+    const share = totalSessions > 0 ? formatPct(n / totalSessions) : "0%";
+    lines.push(insightKV("Busiest weekday", `${busiestDow}  (${formatCount(n)} sessions, ${share})`));
+  }
+
+  const peakTod = argmaxMap(range.todSessions);
+  if (peakTod) {
+    const n = range.todSessions.get(peakTod) ?? 0;
+    const share = totalSessions > 0 ? formatPct(n / totalSessions) : "0%";
+    lines.push(insightKV("Peak time of day", `${todBucketLabel(peakTod)}  (${share})`));
+  }
+
+  const activeDays = range.days.filter((d) => d.sessions > 0).length;
+  lines.push(insightKV("Active days", `${activeDays} / ${days}`));
+  lines.push(insightKV("Longest streak", `${longestActiveStreak(range)} days`));
+  lines.push(
+    insightKV("Avg sessions/day", (days > 0 ? totalSessions / days : 0).toFixed(1)),
+  );
+
+  const topCwd = argmaxMap(range.cwdSessions);
+  if (topCwd) {
+    const n = range.cwdSessions.get(topCwd) ?? 0;
+    const share = totalSessions > 0 ? formatPct(n / totalSessions) : "0%";
+    lines.push(
+      insightKV("Top project", `${abbreviatePath(topCwd, 34)}  (${share})`),
+    );
+  }
+
+  // Parallel launches, scoped to this range's calendar window.
+  const rangeStart = range.days[0]!.dayKeyLocal;
+  const rangeEnd = range.days[range.days.length - 1]!.dayKeyLocal;
+  const rangeSessions = data.allSessions.filter(
+    (s) => s.dayKeyLocal >= rangeStart && s.dayKeyLocal <= rangeEnd,
+  );
+  const parallel = countParallelSessions(rangeSessions);
+  lines.push(
+    insightKV("Parallel launches", `${parallel} session${parallel === 1 ? "" : "s"} (started within ±2 min)`),
+  );
+
+  // ── Tokens & cache ────────────────────────────────────────────────────
+  if (hasTokens) {
+    lines.push("");
+    lines.push(insightSection("Tokens & cache", width));
+    const tb = range.tb;
+    lines.push(
+      insightKV(
+        "Fresh tokens",
+        `${formatCount(tbFresh(tb))}  ${dim(`(in ${formatCount(tb.input + tb.cacheWrite)} · out ${formatCount(tb.output)})`)}`,
+      ),
+    );
+    lines.push(insightKV("Cache read", formatCount(tb.cacheRead)));
+    if (tb.reasoning > 0) {
+      lines.push(insightKV("Reasoning", formatCount(tb.reasoning)));
+    }
+    const hit = cacheHitRate(tb);
+    const bar = fracBar(hit, INSIGHT_BAR_W, { r: 64, g: 196, b: 99 });
+    lines.push(insightKV("Cache hit rate", `${formatPct(hit)}  ${bar}`));
+    const lev = cacheLeverage(tb);
+    lines.push(
+      insightKV("Cache leverage", `${formatLeverage(lev)}  ${dim("(cache saved re-sending prompt ~N×)")}`),
+    );
+
+    // Best / worst model by cache hit rate (need prompt tokens to be meaningful).
+    let bestMk: ModelKey | null = null;
+    let bestHit = -1;
+    let worstMk: ModelKey | null = null;
+    let worstHit = 2;
+    for (const [mk, mtb] of range.modelTb.entries()) {
+      if (tbPrompt(mtb) <= 0) continue;
+      const h = cacheHitRate(mtb);
+      if (h > bestHit) {
+        bestHit = h;
+        bestMk = mk;
+      }
+      if (h < worstHit) {
+        worstHit = h;
+        worstMk = mk;
+      }
+    }
+    if (bestMk && bestMk !== worstMk) {
+      lines.push(
+        insightKV("Best cache hit", `${displayModelName(bestMk)}  ${formatPct(bestHit)}`),
+      );
+      lines.push(
+        insightKV("Worst cache hit", `${displayModelName(worstMk!)}  ${formatPct(worstHit)}`),
+      );
+    }
+  }
+
+  // ── Efficiency (by model) ─────────────────────────────────────────────
+  if (range.modelTokens.size > 0) {
+    lines.push("");
+    lines.push(insightSection("Efficiency (by model)", width));
+    const tokSessW = 8;
+    const perMW = 9;
+    const hitMW = 6;
+    const modelW = Math.max(
+      10,
+      Math.min(34, width - (tokSessW + perMW + hitMW + 12)),
+    );
+    lines.push(
+      `  ${padRight("model", modelW)}  ${padLeft("tok/sess", tokSessW)}  ${padLeft("$/Mtok", perMW)}  ${padLeft("hit%", hitMW)}`,
+    );
+    const effRows = sortMapByValueDesc(range.modelTokens).slice(0, 6);
+    for (const r of effRows) {
+      const sess = range.modelSessions.get(r.key) ?? 0;
+      const toks = range.modelTokens.get(r.key) ?? 0;
+      const cost = range.modelCost.get(r.key) ?? 0;
+      const perSess = sess > 0 ? toks / sess : 0;
+      const perM = toks > 0 ? (cost / toks) * 1_000_000 : 0;
+      const mtb = range.modelTb.get(r.key);
+      const hit = mtb ? hitCell(mtb) : "—";
+      lines.push(
+        `  ${padRight(displayModelName(r.key).slice(0, modelW), modelW)}  ${padLeft(formatCount(Math.round(perSess)), tokSessW)}  ${padLeft(perM > 0 ? `$${formatCount(Math.round(perM))}` : "—", perMW)}  ${padLeft(hit, hitMW)}`,
+      );
+    }
+  }
+
+  // ── Top sessions (by tokens) ─────────────────────────────────────────
+  if (rangeSessions.length > 0) {
+    lines.push("");
+    lines.push(insightSection("Top sessions (by tokens)", width));
+    const dateW = 11;
+    const msgW = 6;
+    const tokW = 8;
+    const hitW = 5;
+    const modelW = 18;
+    const cwdW = Math.max(
+      8,
+      Math.min(
+        32,
+        width - (dateW + 5 + modelW + msgW + tokW + hitW + 18),
+      ),
+    );
+    const top = [...rangeSessions]
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, 5);
+    for (const s of top) {
+      const d = s.startedAt;
+      const p2 = (n: number) => String(n).padStart(2, "0");
+      const date = `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+      const cwdLabel = s.cwd ? abbreviatePath(s.cwd, cwdW) : "—";
+      const hit = hitCell(s.tb);
+      lines.push(
+        `  ${date}  ${padRight(cwdLabel, cwdW)}  ${padRight(displayModelName(s.primaryModel).slice(0, modelW), modelW)}  ${padLeft(String(s.messages), msgW)}m  ${padLeft(formatCount(s.tokens), tokW)}  ${padLeft(hit, hitW)}`,
+      );
+    }
+  }
+
+  // ── vs previous period ────────────────────────────────────────────────
+  const prev = data.prevTotals.get(days);
+  if (prev) {
+    lines.push("");
+    lines.push(insightSection(`vs previous ${days}d`, width));
+    const deltaLine = (label: string, cur: number, pv: number, fmt: (n: number) => string): string => {
+      const dPct = pv > 0 ? formatDeltaPct((cur - pv) / pv) : cur > 0 ? "new" : "—";
+      return insightKV(label, `${fmt(cur)}  ${dim(`(${dPct} vs ${fmt(pv)})`)}`);
+    };
+    lines.push(deltaLine("Sessions", totalSessions, prev.sessions, (n) => formatCount(n)));
+    lines.push(deltaLine("Tokens", range.totalTokens, prev.tokens, (n) => formatCount(n)));
+    if (hasTokens || tbTotal(prev.tb) > 0) {
+      const curHit = cacheHitRate(range.tb);
+      const prevHit = cacheHitRate(prev.tb);
+      lines.push(
+        insightKV(
+          "Cache hit",
+          `${formatPct(curHit)}  ${dim(`(${formatDeltaPts(curHit - prevHit)} vs ${formatPct(prevHit)})`)}`,
+        ),
+      );
+    }
+    if (range.totalCost > 0 || prev.cost > 0) {
+      lines.push(
+        deltaLine("Cost", range.totalCost, prev.cost, (n) => formatUsd(n)),
+      );
+    }
+  }
+
+  return lines.map((l) => truncateToWidth(l, width));
 }
 
 class BreakdownComponent implements Component {
@@ -1454,6 +2129,7 @@ class BreakdownComponent implements Component {
   private rangeIndex = 1; // default 30d
   private measurement: MeasurementMode = "sessions";
   private view: BreakdownView = "model";
+  private showInsights = false;
   private cachedWidth?: number;
   private cachedLines?: string[];
 
@@ -1488,6 +2164,14 @@ class BreakdownComponent implements Component {
       const dir = matchesKey(data, Key.shift("tab")) ? -1 : 1;
       this.measurement =
         order[(idx + order.length + dir) % order.length] ?? "sessions";
+      this.invalidate();
+      this.tui.requestRender();
+      return;
+    }
+
+    // Toggle the insights panel (activity + cache + efficiency + deltas).
+    if (data.toLowerCase() === "i") {
+      this.showInsights = !this.showInsights;
       this.invalidate();
       this.tui.requestRender();
       return;
@@ -1567,7 +2251,8 @@ class BreakdownComponent implements Component {
     const header =
       `${bold("Session breakdown")}  ${tab(7, 0)}${tab(30, 1)}${tab(90, 2)}  ` +
       `${metricTab("sessions", "sess")}${metricTab("messages", "msg")}${metricTab("tokens", "tok")}  ` +
-      `${viewTab("model", "model")}${viewTab("cwd", "cwd")}${viewTab("dow", "dow")}${viewTab("tod", "tod")}`;
+      `${viewTab("model", "model")}${viewTab("cwd", "cwd")}${viewTab("dow", "dow")}${viewTab("tod", "tod")}  ` +
+      (this.showInsights ? bold("[insights]") : dim(" insights "));
 
     // Choose colors and legend based on current view
     let activeColorMap: Map<string, RGB>;
@@ -1642,24 +2327,40 @@ class BreakdownComponent implements Component {
     }
     const tableLines =
       this.view === "model"
-        ? renderModelTable(range, metric.kind, 8)
+        ? renderModelTable(range, metric.kind, 8, width)
         : this.view === "cwd"
-          ? renderCwdTable(range, metric.kind, 8)
+          ? renderCwdTable(range, metric.kind, 8, width)
           : this.view === "dow"
-            ? renderDowTable(range, metric.kind)
-            : renderTodTable(range, metric.kind);
+            ? renderDowTable(range, metric.kind, width)
+            : renderTodTable(range, metric.kind, width);
 
     const lines: string[] = [];
     lines.push(truncateToWidth(header, width));
     lines.push(
       truncateToWidth(
-        dim("←/→ range · ↑/↓ view · tab metric · q to close"),
+        dim(
+          this.showInsights
+            ? "←/→ range · i insights · q to close"
+            : "←/→ range · ↑/↓ view · tab metric · i insights · q to close",
+        ),
         width,
       ),
     );
     lines.push("");
     lines.push(truncateToWidth(summary, width));
     lines.push("");
+
+    // Insights panel replaces the graph + breakdown table when toggled on.
+    if (this.showInsights) {
+      for (const il of renderInsights(this.data, range, selectedDays, width)) {
+        lines.push(il);
+      }
+      this.cachedWidth = width;
+      this.cachedLines = lines.map((l) =>
+        visibleWidth(l) > width ? truncateToWidth(l, width) : l,
+      );
+      return this.cachedLines;
+    }
 
     if (this.view === "dow") {
       for (const gl of graphLines) lines.push(truncateToWidth(gl, width));
@@ -1736,7 +2437,7 @@ class BreakdownComponent implements Component {
 export default function sessionBreakdownExtension(pi: ExtensionAPI) {
   pi.registerCommand("session-breakdown", {
     description:
-      "Interactive breakdown of last 7/30/90 days of ~/.pi session usage (sessions/messages/tokens + cost by model)",
+      "Interactive breakdown of last 7/30/90 days of ~/.pi session usage: activity heatmap, model/cwd/weekday/hour breakdowns, cache hit rate & leverage, and an insights panel (i).",
     handler: async (_args, ctx: ExtensionContext) => {
       if (!ctx.hasUI) {
         // Non-interactive fallback: just notify.

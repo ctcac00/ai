@@ -9,3 +9,6 @@
 .agent-loop-stacking.lock
 .agent-loop-stacking.pid
 .claude/worktrees/
+
+# generated, no real deps
+package-lock.json

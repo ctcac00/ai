@@ -20,7 +20,8 @@
     "npm:pi-fast-subagent",
     "npm:pi-langfuse",
     "npm:pi-lsp",
-    "npm:@juicesharp/rpiv-todo"
+    "npm:@juicesharp/rpiv-todo",
+    "npm:pi-input-history"
   ],
   "theme": "nightowl"
 }

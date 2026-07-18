@@ -46,7 +46,7 @@ Installs harness binaries, copies `.claude/`, `.codex/`, `.pi/`, `.omp/`, `.conf
 
 Also installs [find-skills](https://github.com/vercel-labs/skills) and [skill-creator](https://github.com/anthropics/skills) globally (`npx skills add ... -g -y`, no prompts — skills.sh's own default agent fan-out), and registers the `anthropics/skills` marketplace for claude-code (`claude plugin marketplace add anthropics/skills`, source only — no plugin installed from it).
 
-- Custom pi extensions live at top-level **`extensions/`** (langfuse, leader-key, pi-context-probe, sub-usage, plus shared TS extensions such as todos, prompt-editor, which-key, session-breakdown, tool-manager, rtk, file-backup, files, night-owl-footer). They ship via the **pi-package** model — `package.json` declares `pi.extensions`/`pi.skills`/`pi.themes` and `pi install git:github.com/ctcac00/ai` installs them (build artifacts included), rather than being rsynced from `.pi/agent/extensions/`.
+- Custom pi extensions live at top-level **`extensions/`** (langfuse, leader-key, pi-context-probe, sub-usage, plus shared TS extensions such as todos, which-key, session-breakdown, tool-manager, rtk, file-backup, files, night-owl-footer). They ship via the **pi-package** model — `package.json` declares `pi.extensions`/`pi.skills`/`pi.themes` and `pi install git:github.com/ctcac00/ai` installs them (build artifacts included), rather than being rsynced from `.pi/agent/extensions/`.
 - Pre-flight warnings (non-fatal) for `node` and `jq`.
 - `.pi/agent/settings.json` has a `pi-memory-md.memoryDir.repoUrl` placeholder (`<your-username>/memory`) — point it at your own memory repo before use.
 

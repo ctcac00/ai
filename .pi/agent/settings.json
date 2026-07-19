@@ -1,8 +1,8 @@
 {
-  "lastChangelogVersion": "0.80.3",
+  "lastChangelogVersion": "0.80.10",
   "defaultProvider": "zai",
   "defaultModel": "glm-5.2",
-  "defaultThinkingLevel": "medium",
+  "defaultThinkingLevel": "low",
   "packages": [
     "git:github.com/ctcac00/ai",
     "git:github.com/josephkern/pi-memory",
@@ -16,12 +16,13 @@
     "npm:pi-sessions",
     "npm:@arvoretech/pi-turn-notification",
     "npm:pi-image-subagent",
-    "npm:pi-web-access",
     "npm:pi-fast-subagent",
     "npm:pi-langfuse",
     "npm:pi-lsp",
     "npm:@juicesharp/rpiv-todo",
-    "npm:pi-input-history"
+    "npm:pi-input-history",
+    "npm:pi-web-access"
   ],
-  "theme": "nightowl"
+  "theme": "nightowl",
+  "hideThinkingBlock": false
 }

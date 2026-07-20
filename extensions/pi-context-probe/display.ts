@@ -150,9 +150,6 @@ export class ContextProbeModal {
 		const bd = this.data.breakdown;
 		const limit = bd.contextWindow;
 
-		lines.push({ text: th.fg("accent", th.bold(" Context Probe")) });
-		lines.push({ text: "" });
-
 		const gridWidth = 10;
 		const gridHeight = 10;
 		const totalBlocks = gridWidth * gridHeight;
@@ -200,7 +197,7 @@ export class ContextProbeModal {
 			gridLines.push(rowStr.trimEnd());
 		}
 
-		const totalLine = `${th.fg("text", th.bold("Total Usage".padEnd(16)))} ${th.fg("text", th.bold(formatTokens(bd.total).padStart(7)))} ${th.fg("text", th.bold(`(${(bd.percent ?? 0).toFixed(1).padStart(5)}%)`))}`;
+		const totalLine = `${th.fg("text", th.bold("Total Usage".padEnd(16)))} ${th.fg("text", th.bold(formatTokens(bd.total).padStart(7)))} ${th.fg("text", th.bold(`(${(bd.percent ?? 0).toFixed(1).padStart(5)}% of ${formatTokens(limit)})`))}`;
 
 		const catLines = categories.map((cat) => {
 			const color = CATEGORY_COLORS[cat.label] || "dim";
@@ -212,14 +209,14 @@ export class ContextProbeModal {
 		});
 
 		const allDetail = [totalLine, "", ...catLines];
-		const leftW = 26;
+		const detailW = Math.max(...allDetail.map((l) => visibleWidth(l)));
 		const maxH = Math.max(gridLines.length, allDetail.length);
 		for (let i = 0; i < maxH; i++) {
+			const detailRow = allDetail[i] || "";
+			const pad = Math.max(0, detailW - visibleWidth(detailRow));
+			const left = detailRow + " ".repeat(pad);
 			const gridRow = gridLines[i] || "";
-			const pad = Math.max(0, leftW - visibleWidth(gridRow));
-			const left = gridRow + " ".repeat(pad);
-			const right = allDetail[i] || "";
-			lines.push({ text: `    ${left}  ${right}` });
+			lines.push({ text: `    ${left}  ${gridRow}` });
 		}
 		lines.push({ text: "" });
 	}

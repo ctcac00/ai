@@ -1,6 +1,6 @@
 ---
 name: qbittorrent
-description: Add torrents to qBittorrent and manage downloads via its WebUI API. Use when the user wants to add a magnet link or .torrent URL to qBittorrent, check download progress or status, list current torrents, or pause/resume/remove a download. Designed as the download step after `prowlarr` search→grab: takes a magnet/URL (or piped `prowlarr grab N --json` output) and adds it. Also triggers on mentions of "qBittorrent", "add this torrent", "download this", "what's downloading", or "seed ratio".
+description: "Add torrents to qBittorrent and manage downloads via its WebUI API. Use when the user wants to add a magnet link or .torrent URL to qBittorrent, check download progress or status, list current torrents, or pause/resume/remove a download. Designed as the download step after `prowlarr` search→grab: takes a magnet/URL (or piped `prowlarr grab N --json` output) and adds it. Also triggers on mentions of \"qBittorrent\", \"add this torrent\", \"download this\", \"what's downloading\", or \"seed ratio\"."
 ---
 
 # qBittorrent

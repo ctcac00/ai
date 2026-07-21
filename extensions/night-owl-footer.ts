@@ -3,11 +3,11 @@
  *
  * Custom footer styled with Night Owl colors.
  *
- * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · ▓▓░░ 45%
+ * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · 10.3k (0.9%)
  * RIGHT: ○ <model> · <thinking>
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ContextUsage, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // ── Night Owl palette ────────────────────────────────────────────────────────
@@ -135,16 +135,21 @@ function fmtCost(cost: number): string {
   return cost === 0 ? green(str) : yellow(str);
 }
 
-function contextBar(percent: number | null | undefined): string {
-  if (percent == null) return dim("▕░░░░░░░░░▏");
-  const width = 10;
-  const filled = Math.round((percent / 100) * width);
-  const empty = width - filled;
-  const bar = "█".repeat(filled) + "░".repeat(empty);
+function fmtTokens(tokens: number | null | undefined): string {
+  if (tokens == null) return dim("—");
+  if (tokens < 1000) return dim(`${tokens}`);
+  if (tokens < 1_000_000) return dim(`${(tokens / 1000).toFixed(1)}k`);
+  return dim(`${(tokens / 1_000_000).toFixed(1)}M`);
+}
+
+/** Render context usage as `10.3k (0.9%)`. Tokens dim; percent colored by level. */
+function contextUsageStr(usage: ContextUsage | undefined): string {
+  const tokensStr = fmtTokens(usage?.tokens);
+  const percent = usage?.percent;
+  if (percent == null) return tokensStr;
   const label = `${percent.toFixed(1)}%`;
-  // color by usage level
-  const colored = percent < 50 ? green(bar) : percent < 80 ? yellow(bar) : red(bar);
-  return colored + dim(" ") + (percent < 50 ? dim(label) : percent < 80 ? yellow(label) : red(label));
+  const colored = percent < 50 ? dim(label) : percent < 80 ? yellow(label) : red(label);
+  return `${tokensStr} ${dim("(")}${colored}${dim(")")}`;
 }
 
 // ── Extension ────────────────────────────────────────────────────────────────
@@ -203,7 +208,7 @@ export default function (pi: ExtensionAPI) {
           const repoDir = ctx.cwd.split("/").pop() ?? ctx.cwd;
           const left    = cyan(repoDir)
             + SEP + gitStatusStr(branch, gitStatus)
-            + SEP + contextBar(usage?.percent);
+            + SEP + contextUsageStr(usage);
 
           // ── RIGHT: ○ model · thinking ──
           const modelStr = ctx.model?.id ? blue(`○ ${ctx.model.id}`) : dim("○ no model");

@@ -1,16 +1,51 @@
 {
+  "agentPushNotifEnabled": true,
+  "alwaysThinkingEnabled": false,
+  "awaySummaryEnabled": false,
+  "editorMode": "normal",
+  "effortLevel": "high",
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "langfuse-observability@langfuse-observability": true,
+    "revenuecat@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": {
+        "repo": "anthropics/skills",
+        "source": "github"
+      }
+    },
+    "caveman": {
+      "source": {
+        "repo": "JuliusBrussee/caveman",
+        "source": "github"
+      }
+    },
+    "langfuse-observability": {
+      "source": {
+        "repo": "langfuse/Claude-Observability-Plugin",
+        "source": "github"
+      }
+    }
+  },
   "includeCoAuthoredBy": false,
   "permissions": {
     "defaultMode": "auto"
   },
+  "remoteControlAtStartup": false,
+  "showThinkingSummaries": true,
+  "skipAutoPermissionPrompt": true,
   "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/statusline-command.sh"
+    "command": "bash ~/.claude/statusline-command.sh",
+    "type": "command"
   },
-  "alwaysThinkingEnabled": false,
-  "effortLevel": "high",
-  "tui": "fullscreen",
   "theme": "dark-daltonized",
+  "tui": "fullscreen",
   "verbose": true,
-  "skipAutoPermissionPrompt": true
+  "workflowKeywordTriggerEnabled": false,
+  "worktree": {
+    "baseRef": "fresh"
+  }
 }

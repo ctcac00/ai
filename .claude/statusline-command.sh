@@ -4,18 +4,30 @@ input=$(cat)
 cwd=$(echo "$input" | jq -r '.workspace.current_dir')
 model=$(echo "$input" | jq -r '.model.display_name')
 pct=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
 cost=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 
 cost_fmt=$(printf '%.2f' "$cost")
 
-if [ "$pct" -ge 90 ]; then bar_color="\033[38;5;203m"
-elif [ "$pct" -ge 70 ]; then bar_color="\033[38;5;214m"
-else bar_color="\033[38;5;81m"; fi
-
-filled=$((pct / 10)); empty=$((10 - filled))
-bar=$(i=0; while [ $i -lt $filled ]; do printf '▓'; i=$((i+1)); done; i=0; while [ $i -lt $empty ]; do printf '░'; i=$((i+1)); done)
-
 DIM="\033[38;5;59m"; RST="\033[0m"
+
+pct_precise=$(echo "$input" | jq -r '
+    (.context_window.total_input_tokens // 0) as $t
+    | (.context_window.context_window_size // 0) as $s
+    | if $s > 0 then ($t / $s * 100) else 0 end
+' | xargs printf '%.1f')
+
+if [ "$tokens" -lt 1000 ]; then
+    tokens_fmt="$tokens"
+elif [ "$tokens" -lt 1000000 ]; then
+    tokens_fmt=$(echo "$tokens" | awk '{printf "%.1fk", $1/1000}')
+else
+    tokens_fmt=$(echo "$tokens" | awk '{printf "%.1fM", $1/1000000}')
+fi
+
+if [ "$pct" -ge 50 ]; then pct_color="\033[38;5;203m"
+elif [ "$pct" -ge 25 ]; then pct_color="\033[38;5;214m"
+else pct_color="${DIM}"; fi
 
 branch=""
 git_info=""
@@ -70,7 +82,7 @@ out="\033[38;5;75m\033[1m${display_cwd}\033[0m"
 if [ -n "$branch" ]; then
     out="${out} ${DIM}·${RST} ${git_info}"
 fi
-out="${out} ${DIM}·${RST} ${bar_color}${bar} ${pct}%${RST}"
+out="${out} ${DIM}·${RST} ${DIM}${tokens_fmt}${RST} ${DIM}(${RST}${pct_color}${pct_precise}%${RST}${DIM})${RST}"
 out="${out} ${DIM}·${RST} \033[38;5;220m\$${cost_fmt}${RST}"
 
 effort=$(echo "$input" | jq -r '.effort.level // empty')

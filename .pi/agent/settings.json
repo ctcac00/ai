@@ -15,7 +15,6 @@
     "npm:@marckrenn/pi-sub-core",
     "npm:pi-sessions",
     "npm:@arvoretech/pi-turn-notification",
-    "npm:pi-image-subagent",
     "npm:pi-fast-subagent",
     "npm:pi-langfuse",
     "npm:pi-lsp",

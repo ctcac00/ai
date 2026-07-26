@@ -13,7 +13,7 @@
     "npm:@tmustier/pi-usage-extension",
     "npm:pi-btw",
     "npm:@marckrenn/pi-sub-core",
-    "npm:pi-sessions",
+    "npm:pi-sessions@0.8.0",
     "npm:@arvoretech/pi-turn-notification",
     "npm:pi-fast-subagent",
     "npm:pi-langfuse",

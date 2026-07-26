@@ -38,7 +38,7 @@
   ],
   "sessions": {
     "autoTitle": {
-      "model": "zai/glm-5.2",
+      "model": "zai/glm-5-turbo",
       "thinkingLevel": "off"
     }
   },

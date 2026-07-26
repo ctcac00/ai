@@ -3,8 +3,10 @@
  *
  * Custom footer styled with Night Owl colors.
  *
- * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · 10.3k (0.9%)
+ * LEFT:  <repo/dir> · <branch> +N -N !N ?N ↑N ↓N · 10.3k (0.9%) · $0.34
  * RIGHT: ○ <model> · <thinking>
+ *
+ * Session cost (rightmost LEFT segment) shows only when > 0.
  */
 
 import type { ContextUsage, ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -130,9 +132,36 @@ function gitStatusStr(branch: string | null, status: GitStatus): string {
 }
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
+/** Defensive total-cost extraction (handles number/string/object legacy shapes). */
+function extractCostTotal(usage: unknown): number {
+  if (!usage) return 0;
+  const c = (usage as any)?.cost;
+  if (typeof c === "number") return Number.isFinite(c) ? c : 0;
+  if (typeof c === "string") { const n = Number(c); return Number.isFinite(n) ? n : 0; }
+  const t = (c as any)?.total;
+  if (typeof t === "number") return Number.isFinite(t) ? t : 0;
+  if (typeof t === "string") { const n = Number(t); return Number.isFinite(n) ? n : 0; }
+  return 0;
+}
+
+/** Sum session cost across assistant messages in the session entry list. */
+function computeSessionCost(entries: ReadonlyArray<{ type: string; message?: any }>): number {
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.type !== "message") continue;
+    const msg = entry.message;
+    if (msg?.role !== "assistant") continue;
+    total += extractCostTotal(msg?.usage);
+  }
+  return total;
+}
+
+/** Session cost: hidden at 0; dim <$1, yellow <$5, red >=$5. Mirrors context-% rule. */
 function fmtCost(cost: number): string {
-  const str = `$${cost.toFixed(1)}`;
-  return cost === 0 ? green(str) : yellow(str);
+  const str = `$${cost.toFixed(2)}`;
+  if (cost < 1) return dim(str);
+  if (cost < 5) return yellow(str);
+  return red(str);
 }
 
 function fmtTokens(tokens: number | null | undefined): string {
@@ -156,6 +185,7 @@ function contextUsageStr(usage: ContextUsage | undefined): string {
 export default function (pi: ExtensionAPI) {
   let thinkingLevel: string = "off";
   let gitStatus: GitStatus = { ...EMPTY_STATUS };
+  let sessionCost: number = 0;
   // requestRender handle — set once footer is registered
   let requestRender: (() => void) | null = null;
 
@@ -168,6 +198,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("turn_end", async (_event, ctx) => {
     gitStatus = await fetchGitStatus(ctx.cwd, pi);
+    sessionCost = computeSessionCost(ctx.sessionManager.getEntries() as any);
     requestRender?.();
   });
 
@@ -176,8 +207,9 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     thinkingLevel = (pi.getThinkingLevel() ?? "off") as string;
 
-    // Initial git status
+    // Initial git status + session cost
     gitStatus = await fetchGitStatus(ctx.cwd, pi);
+    sessionCost = computeSessionCost(ctx.sessionManager.getEntries() as any);
 
     ctx.ui.setFooter((tui, _theme, footerData) => {
       // Wire up render handle
@@ -203,12 +235,13 @@ export default function (pi: ExtensionAPI) {
           // ── Context usage ──
           const usage = ctx.getContextUsage();
 
-          // ── LEFT: repo · branch +N -N !N ?N ↑N ↓N · ▓▓░░ 45% · $cost ──
+          // ── LEFT: repo · branch +N -N !N ?N ↑N ↓N · ctx % · $cost (cost only when > 0) ──
           const branch  = footerData.getGitBranch();
           const repoDir = ctx.cwd.split("/").pop() ?? ctx.cwd;
           const left    = cyan(repoDir)
             + SEP + gitStatusStr(branch, gitStatus)
-            + SEP + contextUsageStr(usage);
+            + SEP + contextUsageStr(usage)
+            + (sessionCost > 0 ? SEP + fmtCost(sessionCost) : "");
 
           // ── RIGHT: ○ model · thinking ──
           const modelStr = ctx.model?.id ? blue(`○ ${ctx.model.id}`) : dim("○ no model");

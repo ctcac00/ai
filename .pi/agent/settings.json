@@ -1,8 +1,21 @@
 {
-  "lastChangelogVersion": "0.80.10",
-  "defaultProvider": "zai",
   "defaultModel": "glm-5.2",
+  "defaultProvider": "zai",
   "defaultThinkingLevel": "low",
+  "enabledModels": [
+    "zai/glm-5.2",
+    "zai/glm-5-turbo",
+    "openai-codex/gpt-5.5",
+    "openai-codex/gpt-5.6*",
+    "opencode/deepseek-v4-flash-free",
+    "opencode/laguna-s-2.1-free",
+    "opencode/ling-3.0-flash-free",
+    "opencode/mimo-v2.5-free",
+    "openrouter/moonshotai/kimi-k3",
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "lmstudio/google/gemma-4-e4b:3"
+  ],
+  "hideThinkingBlock": false,
   "packages": [
     "git:github.com/ctcac00/ai",
     "git:github.com/josephkern/pi-memory",
@@ -23,6 +36,11 @@
     "npm:pi-web-access",
     "git:github.com/jonjonrankin/pi-caveman"
   ],
-  "theme": "nightowl",
-  "hideThinkingBlock": false
+  "sessions": {
+    "autoTitle": {
+      "model": "zai/glm-5.2",
+      "thinkingLevel": "off"
+    }
+  },
+  "theme": "nightowl"
 }

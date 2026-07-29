@@ -8,7 +8,6 @@
     "openai-codex/gpt-5.5",
     "openai-codex/gpt-5.6*",
     "opencode/deepseek-v4-flash-free",
-    "opencode/laguna-s-2.1-free",
     "opencode/ling-3.0-flash-free",
     "opencode/mimo-v2.5-free",
     "openrouter/moonshotai/kimi-k3",
@@ -46,3 +45,4 @@
   "theme": "nightowl",
   "lastChangelogVersion": "0.82.1"
 }
+

@@ -1,7 +1,7 @@
 {
-  "defaultModel": "glm-5.2",
+  "defaultModel": "glm-5-turbo",
   "defaultProvider": "zai",
-  "defaultThinkingLevel": "low",
+  "defaultThinkingLevel": "high",
   "enabledModels": [
     "zai/glm-5.2",
     "zai/glm-5-turbo",
@@ -29,7 +29,7 @@
     "npm:pi-sessions@0.8.0",
     "npm:@arvoretech/pi-turn-notification",
     "npm:pi-fast-subagent",
-    "npm:pi-langfuse",
+    "git:github.com/ctcac00/pi-langfuse",
     "npm:pi-lsp",
     "npm:@juicesharp/rpiv-todo",
     "npm:pi-input-history",
@@ -43,5 +43,6 @@
       "thinkingLevel": "off"
     }
   },
-  "theme": "nightowl"
+  "theme": "nightowl",
+  "lastChangelogVersion": "0.82.1"
 }

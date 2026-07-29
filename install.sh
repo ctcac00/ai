@@ -3,6 +3,7 @@
 #
 # Usage:
 #   ./install.sh              # install everything
+#   ./install.sh configs      # sync config files only (no binaries, plugins, rtk)
 #   ./install.sh claude       # one harness config: claude | codex | pi | omp | opencode
 #   ./install.sh --dry-run    # print plan + overwrite list, write nothing
 #   ./install.sh -y|--yes     # don't prompt before overwriting existing files (unattended)
@@ -35,6 +36,7 @@ EXTRA_SKILLS=1
 HAS_RSYNC=0
 command -v rsync >/dev/null 2>&1 && HAS_RSYNC=1
 
+CONFIGS_ONLY=0
 ALL_HARNESSES=(claude codex pi omp opencode)
 
 RTK_INSTALL_URL="https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh"
@@ -105,6 +107,7 @@ for a in "$@"; do
 	--no-langfuse) LANGFUSE=0 ;;
 	--no-caveman) CAVEMAN=0 ;;
 	--no-extra-skills) EXTRA_SKILLS=0 ;;
+	configs) CONFIGS_ONLY=1 ;;
 	claude | codex | pi | omp | opencode) TARGETS+=("$a") ;;
 	*)
 		echo "error: unknown argument '$a'" >&2
@@ -444,6 +447,17 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 printf "${C_DIM}  repo: %s${C_RESET}\n" "$SCRIPT_DIR"
 preflight
+
+if [ "$CONFIGS_ONLY" -eq 1 ]; then
+	section "Configs"
+	for h in "${TARGETS[@]}"; do
+		"do_${h}"
+		echo
+	done
+	printf '\n'
+	printf "${C_GREEN}${C_BOLD}  Configs synced.${C_RESET}\n\n"
+	exit 0
+fi
 
 if [ "$RTK" -eq 1 ]; then
 	section "RTK"

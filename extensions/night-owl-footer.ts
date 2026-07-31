@@ -7,9 +7,15 @@
  * RIGHT: ○ <model> · <thinking>
  *
  * Session cost (rightmost LEFT segment) shows only when > 0.
+ *
+ * Session title lives in the editor's top border (cyan, right-aligned with
+ * ~5% right padding, capped at min(35, 30% of terminal width), first-message
+ * fallback) — see SessionTitleEditor below.
  */
 
-import type { ContextUsage, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ContextUsage, ExtensionAPI, KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // ── Night Owl palette ────────────────────────────────────────────────────────
@@ -95,7 +101,89 @@ function fmtTokens(tokens: number | null | undefined): string {
   return dim(`${(tokens / 1_000_000).toFixed(1)}M`);
 }
 
-/** Render context usage as `10.3k (0.9%)`. Tokens dim; percent colored by level. */
+/** Extract plain text from a message content (string or parts array). */
+function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+      .join(" ")
+      .trim();
+  }
+  return "";
+}
+
+/** First user message text, whitespace collapsed (uncapped — render() truncates). */
+function firstMessageTitle(entries: ReadonlyArray<{ type: string; message?: any }>): string {
+  for (const entry of entries) {
+    if (entry.type !== "message") continue;
+    const msg = entry.message;
+    if (msg?.role !== "user") continue;
+    const text = contentText(msg.content).replace(/\s+/g, " ").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+/** Strip ANSI SGR escape sequences. */
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/**
+ * Editor that splices the session title into the top border line, right-aligned
+ * against the right edge. Works for both the plain dash border and the scroll
+ * indicator ("─── ↑ N more ───") so the title never disappears while composing
+ * long input. Inherits all input behavior (history, undo, paste, autocomplete,
+ * slash menus) from CustomEditor.
+ */
+class SessionTitleEditor extends CustomEditor {
+  private title = "";
+
+  setTitle(title: string): void {
+    this.title = title;
+  }
+
+  render(width: number): string[] {
+    const lines = super.render(width);
+    const title = this.title;
+    if (!title || lines.length === 0) return lines;
+    const top = lines[0];
+    const topPlain = stripAnsi(top);
+    // Top border is either a plain dash run, or the scroll indicator
+    // ("─── ↑ N more ───") when the input is scrolled. Splice the title in
+    // both cases so it stays visible while composing long input.
+    const scrollMatch = /^(─── [↑↓] \d+ more )─*$/.exec(topPlain);
+    if (!scrollMatch && !/^─+$/.test(topPlain)) return lines;
+    // Width-based cap: at most 35 chars, never more than 30% of terminal width.
+    const label = ` ${truncateToWidth(title, Math.min(35, Math.floor(width * 0.3)), "…")} `;
+    const labelWidth = visibleWidth(label);
+    // Right padding: ~5% of width so the title isn't flush against the edge.
+    const padRight = Math.max(1, Math.floor(width * 0.05));
+    if (labelWidth + padRight > width) return lines; // too narrow — keep original border
+    if (scrollMatch) {
+      // Keep the indicator on the left: indicator, dash run, title, padding.
+      const indicator = scrollMatch[1];
+      const rest = width - visibleWidth(indicator) - labelWidth - padRight;
+      if (rest < 0) return lines;
+      const coloredIdx = top.indexOf(topPlain);
+      lines[0] =
+        top.slice(0, coloredIdx) +
+        indicator +
+        this.borderColor("─".repeat(rest)) +
+        cyan(label) +
+        this.borderColor("─".repeat(padRight)) +
+        top.slice(coloredIdx + topPlain.length);
+    } else {
+      lines[0] =
+        this.borderColor("─".repeat(width - labelWidth - padRight)) +
+        cyan(label) +
+        this.borderColor("─".repeat(padRight));
+    }
+    return lines;
+  }
+}
+
 function contextUsageStr(usage: ContextUsage | undefined): string {
   const tokensStr = fmtTokens(usage?.tokens);
   const percent = usage?.percent;
@@ -109,8 +197,16 @@ function contextUsageStr(usage: ContextUsage | undefined): string {
 export default function (pi: ExtensionAPI) {
   let thinkingLevel: string = "off";
   let sessionCost: number = 0;
+  let titleEditor: SessionTitleEditor | null = null;
   // requestRender handle — set once footer is registered
   let requestRender: (() => void) | null = null;
+
+  /** Session name, or first-user-message fallback, uncapped — render() truncates. */
+  function refreshTitle(ctx: any) {
+    const named = ctx.sessionManager.getSessionName();
+    const title = named || firstMessageTitle(ctx.sessionManager.getEntries() as any);
+    titleEditor?.setTitle(title);
+  }
 
   // ── Event handlers (registered once at load) ─────────────────────────────
 
@@ -119,8 +215,15 @@ export default function (pi: ExtensionAPI) {
     requestRender?.();
   });
 
+  // Session renamed via /name, pi.setSessionName(), or pi-sessions /title
+  pi.on("session_info_changed", (_event, ctx) => {
+    refreshTitle(ctx);
+    requestRender?.();
+  });
+
   pi.on("turn_end", async (_event, ctx) => {
     sessionCost = computeSessionCost(ctx.sessionManager.getEntries() as any);
+    refreshTitle(ctx);
     requestRender?.();
   });
 
@@ -129,8 +232,18 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     thinkingLevel = (pi.getThinkingLevel() ?? "off") as string;
 
-    // Initial session cost
+    // Initial session cost + title
     sessionCost = computeSessionCost(ctx.sessionManager.getEntries() as any);
+
+    // Replace editor with one that carries the title in its top border.
+    // All input behavior is inherited; pi re-wires callbacks, autocomplete,
+    // and the live borderColor closure on creation.
+    ctx.ui.setEditorComponent((tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) => {
+      titleEditor = new SessionTitleEditor(tui, theme, keybindings);
+      return titleEditor;
+    });
+
+    refreshTitle(ctx); // after editor exists, so the border shows it immediately
 
     ctx.ui.setFooter((tui, _theme, footerData) => {
       // Wire up render handle

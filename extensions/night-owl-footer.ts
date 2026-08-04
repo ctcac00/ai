@@ -9,7 +9,7 @@
  * Session cost (rightmost LEFT segment) shows only when > 0.
  *
  * Session title lives in the editor's top border (cyan, right-aligned with
- * ~5% right padding, capped at min(35, 30% of terminal width), first-message
+ * ~5% right padding, uncapped except by terminal width, first-message
  * fallback) — see SessionTitleEditor below.
  */
 
@@ -155,11 +155,12 @@ class SessionTitleEditor extends CustomEditor {
     // both cases so it stays visible while composing long input.
     const scrollMatch = /^(─── [↑↓] \d+ more )─*$/.exec(topPlain);
     if (!scrollMatch && !/^─+$/.test(topPlain)) return lines;
-    // Width-based cap: at most 35 chars, never more than 30% of terminal width.
-    const label = ` ${truncateToWidth(title, Math.min(35, Math.floor(width * 0.3)), "…")} `;
-    const labelWidth = visibleWidth(label);
     // Right padding: ~5% of width so the title isn't flush against the edge.
     const padRight = Math.max(1, Math.floor(width * 0.05));
+    // No fixed char limit — truncate only by terminal width so the border
+    // never overflows (2 cols reserved for the surrounding spaces).
+    const label = ` ${truncateToWidth(title, Math.max(1, width - padRight - 2), "…")} `;
+    const labelWidth = visibleWidth(label);
     if (labelWidth + padRight > width) return lines; // too narrow — keep original border
     if (scrollMatch) {
       // Keep the indicator on the left: indicator, dash run, title, padding.

@@ -8,9 +8,9 @@
  *
  * Session cost (rightmost LEFT segment) shows only when > 0.
  *
- * Session title lives in the editor's top border (cyan, right-aligned with
- * ~5% right padding, uncapped except by terminal width, first-message
- * fallback) — see SessionTitleEditor below.
+ * Session title lives in the editor's top border (Night-Owl blue pill/tag,
+ * right-aligned with ~5% right padding, uncapped except by terminal width,
+ * first-message fallback) — see SessionTitleEditor below.
  */
 
 import type { ContextUsage, ExtensionAPI, KeybindingsManager } from "@earendil-works/pi-coding-agent";
@@ -39,6 +39,28 @@ const cyan   = (t: string) => ansi(NO_CYAN,   t);
 const yellow = (t: string) => ansi(NO_YELLOW, t);
 const red    = (t: string) => ansi(NO_RED,    t);
 const purple = (t: string) => ansi(NO_PURPLE, t);
+
+// ── Tag/pill helpers ─────────────────────────────────────────────────────────
+/** Parse "#rrggbb" → [r,g,b]. */
+function rgb(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+/** Single SGR with combined fg + bg. (Nested ansi() resets would cancel the bg.) */
+function tag(fgHex: string, bgHex: string, text: string): string {
+  const [fr, fg, fb] = rgb(fgHex);
+  const [br, bg, bb] = rgb(bgHex);
+  return `\x1b[38;2;${fr};${fg};${fb};48;2;${br};${bg};${bb}m${text}\x1b[0m`;
+}
+
+// Session title pill: Night-Owl periwinkle tag, dark navy text.
+const PILL_FG = "#0d1f3c";
+const PILL_BG = NO_BLUE;
+const pill = (text: string) => tag(PILL_FG, PILL_BG, text);
 
 const SEP = dim(" · ");
 
@@ -159,7 +181,7 @@ class SessionTitleEditor extends CustomEditor {
     const padRight = Math.max(1, Math.floor(width * 0.05));
     // No fixed char limit — truncate only by terminal width so the border
     // never overflows (2 cols reserved for the surrounding spaces).
-    const label = ` ${truncateToWidth(title, Math.max(1, width - padRight - 2), "…")} `;
+    const label = pill(` ${truncateToWidth(title, Math.max(1, width - padRight - 2), "…")} `);
     const labelWidth = visibleWidth(label);
     if (labelWidth + padRight > width) return lines; // too narrow — keep original border
     if (scrollMatch) {
@@ -172,13 +194,13 @@ class SessionTitleEditor extends CustomEditor {
         top.slice(0, coloredIdx) +
         indicator +
         this.borderColor("─".repeat(rest)) +
-        cyan(label) +
+        label +
         this.borderColor("─".repeat(padRight)) +
         top.slice(coloredIdx + topPlain.length);
     } else {
       lines[0] =
         this.borderColor("─".repeat(width - labelWidth - padRight)) +
-        cyan(label) +
+        label +
         this.borderColor("─".repeat(padRight));
     }
     return lines;

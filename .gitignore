@@ -12,3 +12,5 @@
 
 # generated, no real deps
 package-lock.json
+
+node_modules/

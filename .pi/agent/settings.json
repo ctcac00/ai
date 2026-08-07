@@ -23,10 +23,7 @@
     "npm:pi-add-dir",
     "npm:pi-prompt-template-model",
     "npm:@tmustier/pi-usage-extension",
-    "npm:pi-btw",
     "npm:@marckrenn/pi-sub-core",
-    "npm:pi-sessions@0.8.0",
-    "npm:@arvoretech/pi-turn-notification",
     "git:github.com/ctcac00/pi-langfuse",
     "npm:pi-lsp",
     "npm:@juicesharp/rpiv-todo",
@@ -38,6 +35,9 @@
   ],
   "sessions": {
     "autoTitle": {
+      "refreshTurns": 4,
+      "timeoutSecs": 15,
+      "tokenBudget": 64,
       "model": "zai/glm-5-turbo",
       "thinkingLevel": "off"
     }

@@ -4,7 +4,7 @@
   "graceTurns": 5,
   "defaultJoinMode": "smart",
   "schedulingEnabled": true,
-  "scopeModels": false,
+  "scopeModels": true,
   "disableDefaultAgents": false,
   "toolDescriptionMode": "compact",
   "fleetView": true,

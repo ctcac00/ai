@@ -177,8 +177,8 @@ class SessionTitleEditor extends CustomEditor {
     // both cases so it stays visible while composing long input.
     const scrollMatch = /^(─── [↑↓] \d+ more )─*$/.exec(topPlain);
     if (!scrollMatch && !/^─+$/.test(topPlain)) return lines;
-    // Right padding: ~5% of width so the title isn't flush against the edge.
-    const padRight = Math.max(1, Math.floor(width * 0.05));
+    // Right padding: ~2% of width so the title isn't flush against the edge.
+    const padRight = Math.max(1, Math.floor(width * 0.02));
     // No fixed char limit — truncate only by terminal width so the border
     // never overflows (2 cols reserved for the surrounding spaces).
     const label = pill(` ${truncateToWidth(title, Math.max(1, width - padRight - 2), "…")} `);

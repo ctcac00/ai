@@ -56,16 +56,22 @@ For each approved slice, publish a new issue to the issue tracker. Use the issue
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
 
+Create each slice as a real **sub-issue of its parent** when the source was an existing issue, instead of only referencing the parent in the body:
+
+- GitHub (gh >= 2.94): `gh issue create --title <title> --body-file <file> --parent <parent-number>` creates the slice as a sub-issue of the parent. Blocking links can be created natively too (`gh issue create --blocked-by <numbers>`); the "Blocked by" body section below stays as the readable record for humans.
+- No parent exists (source was a plan/PRD): publish standalone issues.
+- Tracker without a native sub-issue mechanism: keep the "## Parent" body section below as the fallback.
+
 <issue-template>
-## Parent
-
-A reference to the parent issue on the issue tracker (if the source was an existing issue, otherwise omit this section).
-
 ## What to build
 
 A concise description of this vertical slice. Describe the end-to-end behavior, not layer-by-layer implementation.
 
 Avoid specific file paths or code snippets — they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it here and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
+
+## Parent
+
+Reference to the parent issue. Only include when the tracker has no native sub-issue mechanism; otherwise omit and create the sub-issue relationship at publish time.
 
 ## Acceptance criteria
 

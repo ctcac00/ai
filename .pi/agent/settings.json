@@ -7,8 +7,6 @@
     "zai/glm-5-turbo",
     "openai-codex/gpt-5.5",
     "openai-codex/gpt-5.6*",
-    "opencode/deepseek-v4-flash-free",
-    "opencode/mimo-v2.5-free",
     "openrouter/moonshotai/kimi-k3",
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "lmstudio/google/gemma-4-e4b:3"

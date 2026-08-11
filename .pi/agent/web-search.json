@@ -1,4 +1,7 @@
 {
   "workflow": "none",
-  "searchProvider": "exa"
+  "searchProvider": "exa",
+  "summaryModel": "zai/glm-5-turbo",
+  "curatorTimeoutSeconds": 5,
+  "autoOpenBrowser": false
 }

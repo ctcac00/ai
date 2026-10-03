@@ -1,17 +1,8 @@
 {
-  "defaultModel": "glm-5-turbo",
+  "defaultModel": "glm-5.3-flash",
   "defaultProvider": "zai",
   "defaultThinkingLevel": "off",
-  "enabledModels": [
-    "lmstudio/google/gemma-4-e4b:3",
-    "openai-codex/gpt-5.5",
-    "openai-codex/gpt-5.6-*",
-    "openrouter/deepseek/deepseek-v4-flash-0731",
-    "openrouter/moonshotai/kimi-k3",
-    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-    "zai/glm-5-turbo",
-    "zai/glm-5.3"
-  ],
+  "enabledModels": ["zai/glm-5.3-flash", "zai/glm-5.3"],
   "hideThinkingBlock": false,
   "lastChangelogVersion": "0.84.2",
   "packages": [
@@ -28,13 +19,12 @@
     "npm:pi-add-dir",
     "npm:pi-input-history",
     "npm:pi-lsp",
-    "npm:pi-mcp-adapter",
     "npm:pi-prompt-template-model",
     "npm:pi-web-access"
   ],
   "sessions": {
     "autoTitle": {
-      "model": "zai/glm-5-turbo",
+      "model": "zai/glm-5.3-flash",
       "refreshTurns": 4,
       "thinkingLevel": "off",
       "timeoutSecs": 15,

@@ -9,16 +9,16 @@ enabledModels: []
 disabledProviders: []
 disabledExtensions: []
 modelRoles:
-  default: zai/glm-5.2:high
-  smol: zai/glm-5-turbo
-  commit: zai/glm-5-turbo
-  plan: zai/glm-5.2:max
-  slow: zai/glm-5.2:max
-  designer: zai/glm-5.2:max
-  tiny: zai/glm-5-turbo
-  advisor: openai-codex/gpt-5.6-sol
-  vision: openai-codex/gpt-5.6-luna
-  task: zai/glm-5.2
+  default: zai/glm-5.3:high
+  smol: zai/glm-5.3-flash
+  commit: zai/glm-5.3-flash
+  plan: zai/glm-5.3:max
+  slow: zai/glm-5.3:max
+  designer: zai/glm-5.3:max
+  tiny: zai/glm-5.3-flash
+  advisor: zai/glm-5.3
+  vision: zai/glm-5.3-flash
+  task: zai/glm-5.3
 modelTags: {}
 modelProviderOrder: []
 cycleOrder:

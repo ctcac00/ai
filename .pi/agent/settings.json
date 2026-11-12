@@ -1,10 +1,8 @@
 {
-  "defaultModel": "glm-5.3-flash",
-  "defaultProvider": "zai",
-  "defaultThinkingLevel": "off",
-  "enabledModels": ["zai/glm-5.3-flash", "zai/glm-5.3"],
+  "defaultProvider": "openrouter",
+  "defaultModel": "openrouter/free",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.84.2",
+  "lastChangelogVersion": "1.5.0",
   "packages": [
     "git:github.com/ctcac00/ai",
     "git:github.com/ctcac00/pi-langfuse",
@@ -24,12 +22,19 @@
   ],
   "sessions": {
     "autoTitle": {
-      "model": "zai/glm-5.3-flash",
+      "thinkinLevel": "medium",
       "refreshTurns": 4,
-      "thinkingLevel": "off",
       "timeoutSecs": 15,
       "tokenBudget": 64
     }
   },
-  "theme": "nightowl"
+  "theme": "nightowl",
+  "extensionChangelogVersions": {
+    "{\"source\":\"npm:@hk_net/pi-advisor\",\"scope\":\"user\"}": "0.1.12",
+    "{\"source\":\"npm:@marckrenn/pi-sub-core\",\"scope\":\"user\"}": "1.5.0",
+    "{\"source\":\"npm:@tintinweb/pi-subagents\",\"scope\":\"user\"}": "0.22.1",
+    "{\"source\":\"npm:@tmustier/pi-usage-extension\",\"scope\":\"user\"}": "0.10.1",
+    "{\"source\":\"npm:pi-prompt-template-model\",\"scope\":\"user\"}": "0.12.3",
+    "{\"source\":\"npm:pi-web-access\",\"scope\":\"user\"}": "0.46.0"
+  }
 }

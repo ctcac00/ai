@@ -1,5 +1,4 @@
 {
-  "model": "zai/glm-5.3",
   "thinking": "max",
   "onDone": false,
   "whenStuck": 0,
